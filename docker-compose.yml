@@ -1,13 +1,100 @@
 version: '3.8'
 
 services:
-  app:
+  # Main AVA 2.0 API Server
+  ava:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - AVA_DEBUG=false
+      - AVA_LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://ava_user:ava_password@postgres:5432/ava_db
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
     volumes:
-      - .:/app
-    working_dir: /app
-    stdin_open: true
-    tty: true
-    command: /bin/bash
+      - ./data:/app/data
+    networks:
+      - ava-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (Primary)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=ava_user
+      - POSTGRES_PASSWORD=ava_password
+      - POSTGRES_DB=ava_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - ava-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ava_user -d ava_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (Cache & Task Queue)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ava-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Background Task Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A ava.tasks.worker worker --loglevel=info
+    environment:
+      - AVA_DEBUG=false
+      - DATABASE_URL=postgresql://ava_user:ava_password@postgres:5432/ava_db
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ava-network
+
+  # Monitoring & Logging (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - ava-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+
+networks:
+  ava-network:
+    driver: bridge
