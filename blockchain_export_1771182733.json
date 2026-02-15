@@ -1,0 +1,365 @@
+{
+  "difficulty": 4,
+  "blocks": [
+    {
+      "index": 0,
+      "timestamp": 1771182719.6062968,
+      "threat_data": {
+        "type": "GENESIS",
+        "message": "AVA Security Blockchain v96.0 Genesis Block",
+        "creator": "Danny Nico Hildebrand",
+        "date": "2026-02-15"
+      },
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "nonce": 143900,
+      "hash": "00005828c5073f24f02ea7a42ba46112fba67a404a3480a877e886579c961679"
+    },
+    {
+      "index": 1,
+      "timestamp": 1771182721.8423817,
+      "threat_data": {
+        "type": "TOKEN_ISSUED",
+        "token_id": "LZ-cCan03BlttdLKHCRIKjQu6B_Byq8kl-97vPWYxXY",
+        "owner": "cb1a1ac5e2e8",
+        "permissions": [
+          "read_sensors",
+          "write_logs",
+          "report_threats"
+        ],
+        "expires_at": 1771186321.84237
+      },
+      "previous_hash": "00005828c5073f24f02ea7a42ba46112fba67a404a3480a877e886579c961679",
+      "nonce": 88916,
+      "hash": "00006df450d84215db0d8fd6304c89166a01264cc6f926ef0f36a436006b8409"
+    },
+    {
+      "index": 2,
+      "timestamp": 1771182722.691521,
+      "threat_data": {
+        "type": "DEVICE_REGISTERED",
+        "device_id": "cb1a1ac5e2e8",
+        "device_type": "security_camera",
+        "ip_address": "192.168.1.10",
+        "firmware_hash": "27afe5962a53aa41336b3698fcf6aaf5b09e56e33c4ee730472817af35c3251c",
+        "token_id": "LZ-cCan03BlttdLKHCRIKjQu6B_Byq8kl-97vPWYxXY",
+        "timestamp": 1771182722.691516
+      },
+      "previous_hash": "00006df450d84215db0d8fd6304c89166a01264cc6f926ef0f36a436006b8409",
+      "nonce": 155444,
+      "hash": "0000c5be0c2a396fc6b0aebeaa92012ede91744418afc94ead550d5e8ab44bbb"
+    },
+    {
+      "index": 3,
+      "timestamp": 1771182724.6610067,
+      "threat_data": {
+        "type": "TOKEN_ISSUED",
+        "token_id": "QEKouRP4vPHE-P3z6_6Qn8MVR4A8ZQPxQT5c2-I6Wlg",
+        "owner": "d7a3e5d4b3e9",
+        "permissions": [
+          "read_sensors",
+          "write_logs",
+          "report_threats"
+        ],
+        "expires_at": 1771186324.6609962
+      },
+      "previous_hash": "0000c5be0c2a396fc6b0aebeaa92012ede91744418afc94ead550d5e8ab44bbb",
+      "nonce": 77803,
+      "hash": "00007028576dd0455a4991ab82e320c06fbf35a1fb4ed95e79c74ac35cc5b486"
+    },
+    {
+      "index": 4,
+      "timestamp": 1771182725.304715,
+      "threat_data": {
+        "type": "DEVICE_REGISTERED",
+        "device_id": "d7a3e5d4b3e9",
+        "device_type": "motion_sensor",
+        "ip_address": "192.168.1.20",
+        "firmware_hash": "7dcf1d2ee3dbc68dda521f1ab34a95e6629efe71ba0aec7880d15743bf8c607a",
+        "token_id": "QEKouRP4vPHE-P3z6_6Qn8MVR4A8ZQPxQT5c2-I6Wlg",
+        "timestamp": 1771182725.304713
+      },
+      "previous_hash": "00007028576dd0455a4991ab82e320c06fbf35a1fb4ed95e79c74ac35cc5b486",
+      "nonce": 35360,
+      "hash": "00005d7b680ff22e82ff5d955193c9befb805be6a7f1dc9b070eb5c2e9ac29f6"
+    },
+    {
+      "index": 5,
+      "timestamp": 1771182726.1310835,
+      "threat_data": {
+        "type": "TOKEN_ISSUED",
+        "token_id": "3RBaqWNxmdIqGJhGPEw6E6zaSfckgz9WsUjYE0ZVuLE",
+        "owner": "ab41290660f3",
+        "permissions": [
+          "read_sensors",
+          "write_logs",
+          "report_threats"
+        ],
+        "expires_at": 1771186326.1310763
+      },
+      "previous_hash": "00005d7b680ff22e82ff5d955193c9befb805be6a7f1dc9b070eb5c2e9ac29f6",
+      "nonce": 23463,
+      "hash": "0000c9e612acda667b01b17d8311148a7405e39e8782112a9f13b45229a8d388"
+    },
+    {
+      "index": 6,
+      "timestamp": 1771182726.3625853,
+      "threat_data": {
+        "type": "DEVICE_REGISTERED",
+        "device_id": "ab41290660f3",
+        "device_type": "iot_gateway",
+        "ip_address": "192.168.1.1",
+        "firmware_hash": "b831e06dfba9d63e003615f0c7913e343988daf0a98af10c793f9246995d5fac",
+        "token_id": "3RBaqWNxmdIqGJhGPEw6E6zaSfckgz9WsUjYE0ZVuLE",
+        "timestamp": 1771182726.3625836
+      },
+      "previous_hash": "0000c9e612acda667b01b17d8311148a7405e39e8782112a9f13b45229a8d388",
+      "nonce": 84565,
+      "hash": "0000a587041b0a65819964ef7e38ac028f9f651d86786b267280f7ff243a3759"
+    },
+    {
+      "index": 7,
+      "timestamp": 1771182727.1434278,
+      "threat_data": {
+        "type": "THREAT_CONFIRMED",
+        "threat_id": "42eec3735c78434e",
+        "threat_data": {
+          "type": "NETWORK_INTRUSION",
+          "severity": "HIGH",
+          "source_ip": "203.0.113.45",
+          "target": "cb1a1ac5e2e8",
+          "description": "Unauthorized access attempt"
+        },
+        "votes": 7,
+        "consensus": 0.7,
+        "reporters": [
+          "node_0",
+          "node_1",
+          "node_2",
+          "node_3",
+          "node_4",
+          "node_5",
+          "node_6"
+        ]
+      },
+      "previous_hash": "0000a587041b0a65819964ef7e38ac028f9f651d86786b267280f7ff243a3759",
+      "nonce": 10907,
+      "hash": "00005f0f672e67403cb2cbee45c320717552374d57490647eefcbb01738251a6"
+    },
+    {
+      "index": 8,
+      "timestamp": 1771182727.2430582,
+      "threat_data": {
+        "type": "NETWORK_INTRUSION",
+        "severity": "HIGH",
+        "source_ip": "203.0.113.45",
+        "target": "cb1a1ac5e2e8",
+        "description": "Unauthorized access attempt"
+      },
+      "previous_hash": "00005f0f672e67403cb2cbee45c320717552374d57490647eefcbb01738251a6",
+      "nonce": 41396,
+      "hash": "0000debd3cf1e2a127d174a25426eca5e106798b6e0c732d3736f65340fa79a8"
+    },
+    {
+      "index": 9,
+      "timestamp": 1771182728.0798,
+      "threat_data": {
+        "type": "THREAT_CONFIRMED",
+        "threat_id": "4cd01e119df3ab67",
+        "threat_data": {
+          "type": "DDOS_ATTACK",
+          "severity": "CRITICAL",
+          "source_ips": [
+            "198.51.100.10",
+            "198.51.100.11",
+            "198.51.100.12"
+          ],
+          "target": "ab41290660f3",
+          "requests_per_second": 10000
+        },
+        "votes": 7,
+        "consensus": 0.7,
+        "reporters": [
+          "node_0",
+          "node_1",
+          "node_2",
+          "node_3",
+          "node_4",
+          "node_5",
+          "node_6"
+        ]
+      },
+      "previous_hash": "0000debd3cf1e2a127d174a25426eca5e106798b6e0c732d3736f65340fa79a8",
+      "nonce": 46206,
+      "hash": "0000d3c7981da977ff46eebc0d7e73ac82b38f45919bf0befc80c2c965c26592"
+    },
+    {
+      "index": 10,
+      "timestamp": 1771182728.5151243,
+      "threat_data": {
+        "type": "DDOS_ATTACK",
+        "severity": "CRITICAL",
+        "source_ips": [
+          "198.51.100.10",
+          "198.51.100.11",
+          "198.51.100.12"
+        ],
+        "target": "ab41290660f3",
+        "requests_per_second": 10000
+      },
+      "previous_hash": "0000d3c7981da977ff46eebc0d7e73ac82b38f45919bf0befc80c2c965c26592",
+      "nonce": 38470,
+      "hash": "0000ace3a72fa92aa031842c6f73b4c38fe26f6f5510d5bca5335a06a6b236f7"
+    },
+    {
+      "index": 11,
+      "timestamp": 1771182729.2983537,
+      "threat_data": {
+        "type": "THREAT_CONFIRMED",
+        "threat_id": "98e7686c15e189de",
+        "threat_data": {
+          "type": "MALWARE_DETECTED",
+          "severity": "CRITICAL",
+          "device": "d7a3e5d4b3e9",
+          "malware_signature": "Trojan.IoT.Mirai.Variant"
+        },
+        "votes": 7,
+        "consensus": 0.7,
+        "reporters": [
+          "node_0",
+          "node_1",
+          "node_2",
+          "node_3",
+          "node_4",
+          "node_5",
+          "node_6"
+        ]
+      },
+      "previous_hash": "0000ace3a72fa92aa031842c6f73b4c38fe26f6f5510d5bca5335a06a6b236f7",
+      "nonce": 71196,
+      "hash": "000099f41e84c4e6feae1c44237b0b6bc31906ba5324dd91eb3b02419b259ec7"
+    },
+    {
+      "index": 12,
+      "timestamp": 1771182730.2114394,
+      "threat_data": {
+        "type": "MALWARE_DETECTED",
+        "severity": "CRITICAL",
+        "device": "d7a3e5d4b3e9",
+        "malware_signature": "Trojan.IoT.Mirai.Variant"
+      },
+      "previous_hash": "000099f41e84c4e6feae1c44237b0b6bc31906ba5324dd91eb3b02419b259ec7",
+      "nonce": 12559,
+      "hash": "0000b2b362e332c431ae1e397bd1629f391ced2df08bc45f2815ae974a1bafea"
+    },
+    {
+      "index": 13,
+      "timestamp": 1771182731.3742285,
+      "threat_data": {
+        "type": "THREAT_CONFIRMED",
+        "threat_id": "ce330b64ad448c78",
+        "threat_data": {
+          "type": "BEHAVIOR_ANOMALY",
+          "device_id": "d7a3e5d4b3e9",
+          "anomalies": [
+            "Abnormal CPU usage: 98.0%",
+            "Abnormal memory usage: 95.0%",
+            "Abnormal network traffic: 9999.0 KB/s",
+            "Abnormal request rate: 1000.0 req/min"
+          ],
+          "metrics": {
+            "cpu_usage": 98.0,
+            "memory_usage": 95.0,
+            "network_traffic": 9999.0,
+            "requests_per_minute": 1000.0
+          },
+          "severity": "HIGH",
+          "timestamp": 1771182731.374065
+        },
+        "votes": 7,
+        "consensus": 0.7,
+        "reporters": [
+          "node_0",
+          "node_1",
+          "node_2",
+          "node_3",
+          "node_4",
+          "node_5",
+          "node_6"
+        ]
+      },
+      "previous_hash": "0000b2b362e332c431ae1e397bd1629f391ced2df08bc45f2815ae974a1bafea",
+      "nonce": 13859,
+      "hash": "00009ef5fd806911011c47934bd185b4aea6ccfb3a510d92b5158fd1135adaaa"
+    },
+    {
+      "index": 14,
+      "timestamp": 1771182731.5371208,
+      "threat_data": {
+        "type": "BEHAVIOR_ANOMALY",
+        "device_id": "d7a3e5d4b3e9",
+        "anomalies": [
+          "Abnormal CPU usage: 98.0%",
+          "Abnormal memory usage: 95.0%",
+          "Abnormal network traffic: 9999.0 KB/s",
+          "Abnormal request rate: 1000.0 req/min"
+        ],
+        "metrics": {
+          "cpu_usage": 98.0,
+          "memory_usage": 95.0,
+          "network_traffic": 9999.0,
+          "requests_per_minute": 1000.0
+        },
+        "severity": "HIGH",
+        "timestamp": 1771182731.374065
+      },
+      "previous_hash": "00009ef5fd806911011c47934bd185b4aea6ccfb3a510d92b5158fd1135adaaa",
+      "nonce": 56612,
+      "hash": "0000bd6a2c2871c4dbdfa04f1fee14d4ceea8ebbd15361611b92271f78086fd2"
+    },
+    {
+      "index": 15,
+      "timestamp": 1771182732.6120477,
+      "threat_data": {
+        "type": "THREAT_CONFIRMED",
+        "threat_id": "1ab2d57476e2051d",
+        "threat_data": {
+          "type": "FIRMWARE_TAMPERING",
+          "device_id": "d7a3e5d4b3e9",
+          "error": "Firmware modified - possible tampering",
+          "severity": "CRITICAL",
+          "timestamp": 1771182732.611901
+        },
+        "votes": 7,
+        "consensus": 0.7,
+        "reporters": [
+          "node_0",
+          "node_1",
+          "node_2",
+          "node_3",
+          "node_4",
+          "node_5",
+          "node_6"
+        ]
+      },
+      "previous_hash": "0000bd6a2c2871c4dbdfa04f1fee14d4ceea8ebbd15361611b92271f78086fd2",
+      "nonce": 30020,
+      "hash": "00002205d3b7b34755b1544fb6afe7d1d6dbf5afce9bda3d46901dc7bf8d3c47"
+    },
+    {
+      "index": 16,
+      "timestamp": 1771182733.164276,
+      "threat_data": {
+        "type": "FIRMWARE_TAMPERING",
+        "device_id": "d7a3e5d4b3e9",
+        "error": "Firmware modified - possible tampering",
+        "severity": "CRITICAL",
+        "timestamp": 1771182732.611901
+      },
+      "previous_hash": "00002205d3b7b34755b1544fb6afe7d1d6dbf5afce9bda3d46901dc7bf8d3c47",
+      "nonce": 35489,
+      "hash": "00003956b30410e3481535005c0af144b7d58dbf47f2fe90a536eda555cafb44"
+    }
+  ],
+  "length": 17,
+  "verified": true
+}

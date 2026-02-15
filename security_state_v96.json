@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "version": "96.0",
+    "creator": "Danny Nico Hildebrand",
+    "timestamp": 1771182733.4704497,
+    "location": "Danny Devito 01610 Nachhall"
+  },
+  "statistics": {
+    "platform": {
+      "version": "96.0",
+      "uptime_seconds": 12.628440856933594,
+      "total_threats_blocked": 5,
+      "total_devices_protected": 3,
+      "total_tokens_issued": 3
+    },
+    "blockchain": {
+      "total_blocks": 17,
+      "chain_valid": true,
+      "difficulty": 4
+    },
+    "tangle": {
+      "total_transactions": 9,
+      "confirmed": 9,
+      "pending": 0,
+      "tips": 1,
+      "confirmation_rate": "100.0%",
+      "average_weight": 108.0
+    },
+    "iot": {
+      "total_devices": 3,
+      "active_devices": 3,
+      "total_threats_detected": 0,
+      "average_security_score": 100.0,
+      "devices_by_type": {}
+    },
+    "threat_intelligence": {
+      "total_reports": 35,
+      "confirmed_threats": 5
+    }
+  },
+  "blockchain_export": "blockchain_export_1771182733.json",
+  "tangle_export": "tangle_export_1771182733.json"
+}

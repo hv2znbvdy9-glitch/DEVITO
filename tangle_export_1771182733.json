@@ -1,0 +1,118 @@
+{
+  "nodes": [
+    {
+      "id": "genesis_ec136a120ff3dd97",
+      "timestamp": 1771182720.841949,
+      "threat_type": "GENESIS",
+      "weight": 100,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "23cc0a03c60333fb",
+      "timestamp": 1771182721.8422031,
+      "threat_type": "IOT_DEVICE_REGISTERED",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "17f6093bc744a867",
+      "timestamp": 1771182724.6608255,
+      "threat_type": "IOT_DEVICE_REGISTERED",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "6252a267dcbb4d0f",
+      "timestamp": 1771182726.1309462,
+      "threat_type": "IOT_DEVICE_REGISTERED",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "b8c363d094ddd054",
+      "timestamp": 1771182727.2430215,
+      "threat_type": "NETWORK_INTRUSION",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "08b14c10e7913f86",
+      "timestamp": 1771182728.5150828,
+      "threat_type": "DDOS_ATTACK",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "8396e32bee052731",
+      "timestamp": 1771182730.2113779,
+      "threat_type": "MALWARE_DETECTED",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "57a01b7c53203c86",
+      "timestamp": 1771182731.5370739,
+      "threat_type": "BEHAVIOR_ANOMALY",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    },
+    {
+      "id": "78036a677232440f",
+      "timestamp": 1771182733.1642303,
+      "threat_type": "FIRMWARE_TAMPERING",
+      "weight": 1,
+      "cumulative_weight": 108,
+      "confirmed": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "23cc0a03c60333fb",
+      "to": "genesis_ec136a120ff3dd97"
+    },
+    {
+      "from": "17f6093bc744a867",
+      "to": "23cc0a03c60333fb"
+    },
+    {
+      "from": "6252a267dcbb4d0f",
+      "to": "17f6093bc744a867"
+    },
+    {
+      "from": "b8c363d094ddd054",
+      "to": "6252a267dcbb4d0f"
+    },
+    {
+      "from": "08b14c10e7913f86",
+      "to": "b8c363d094ddd054"
+    },
+    {
+      "from": "8396e32bee052731",
+      "to": "08b14c10e7913f86"
+    },
+    {
+      "from": "57a01b7c53203c86",
+      "to": "8396e32bee052731"
+    },
+    {
+      "from": "78036a677232440f",
+      "to": "57a01b7c53203c86"
+    }
+  ],
+  "statistics": {
+    "total_transactions": 9,
+    "confirmed": 9,
+    "pending": 0,
+    "tips": 1,
+    "confirmation_rate": "100.0%",
+    "average_weight": 108.0
+  }
+}
