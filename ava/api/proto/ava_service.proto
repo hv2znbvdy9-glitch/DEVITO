@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package ava.v1;
+
+// AVA Service - Gehärtete gRPC API Definition
+service AVAService {
+  // Wellbeing Services
+  rpc GetWellbeingScore(WellbeingRequest) returns (WellbeingResponse);
+  rpc RecordMood(MoodRequest) returns (StatusResponse);
+  
+  // Task Services  
+  rpc CreateTask(CreateTaskRequest) returns (TaskResponse);
+  rpc ListTasks(ListTasksRequest) returns (TaskListResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (TaskResponse);
+  
+  // Sync Services
+  rpc SyncData(SyncRequest) returns (SyncResponse);
+  rpc GetSyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+  
+  // Health Check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Wellbeing Messages
+message WellbeingRequest {
+  string user_id = 1;
+  int64 timestamp = 2;
+}
+
+message WellbeingResponse {
+  double score = 1;
+  string status = 2;
+  map<string, double> metrics = 3;
+}
+
+message MoodRequest {
+  string user_id = 1;
+  int32 mood_level = 2;  // 1-10
+  string notes = 3;
+  int64 timestamp = 4;
+}
+
+// Task Messages
+message CreateTaskRequest {
+  string title = 1;
+  string description = 2;
+  string priority = 3;
+  int64 due_date = 4;
+}
+
+message UpdateTaskRequest {
+  string task_id = 1;
+  string title = 2;
+  string description = 3;
+  string status = 4;
+}
+
+message TaskResponse {
+  string task_id = 1;
+  string title = 2;
+  string description = 3;
+  string status = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message ListTasksRequest {
+  string user_id = 1;
+  string status_filter = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message TaskListResponse {
+  repeated TaskResponse tasks = 1;
+  int32 total_count = 2;
+}
+
+// Sync Messages
+message SyncRequest {
+  string user_id = 1;
+  repeated string resource_ids = 2;
+  int64 last_sync_timestamp = 3;
+}
+
+message SyncResponse {
+  bool success = 1;
+  int32 synced_items = 2;
+  int64 next_sync_timestamp = 3;
+  repeated string errors = 4;
+}
+
+message SyncStatusRequest {
+  string user_id = 1;
+}
+
+message SyncStatusResponse {
+  bool is_syncing = 1;
+  int64 last_sync = 2;
+  int32 pending_items = 3;
+}
+
+// Common Messages
+message StatusResponse {
+  bool success = 1;
+  string message = 2;
+  map<string, string> metadata = 3;
+}
+
+message HealthCheckRequest {
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  string status = 1;  // "healthy", "degraded", "unhealthy"
+  string version = 2;
+  int64 uptime_seconds = 3;
+  map<string, string> component_status = 4;
+}

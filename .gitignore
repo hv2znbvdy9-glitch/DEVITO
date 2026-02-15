@@ -129,3 +129,27 @@ dmypy.json
 *.swo
 *~
 .DS_Store
+
+# gRPC & Security
+# TLS/mTLS Certificates (NEVER commit private keys!)
+certs/
+*.key
+*.crt
+*.pem
+*.p12
+*.pfx
+
+# Compiled Protocol Buffers
+*_pb2.py
+*_pb2.pyi
+*_pb2_grpc.py
+
+# Logs & Audit
+logs/
+*.log
+/var/log/
+
+# Secrets
+.secrets/
+secrets/
+vault/

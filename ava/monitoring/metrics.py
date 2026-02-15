@@ -295,3 +295,208 @@ class PerformanceMonitor:
             "max_ms": max(times) * 1000,
             "total_ms": sum(times) * 1000
         }
+
+class WellbeingMetrics:
+    """🌟 Specialized metrics for AVA Wellbeing System."""
+    
+    def __init__(self):
+        """Initialize wellbeing metrics."""
+        self.metrics_collector = MetricsCollector()
+        self.pillar_scores: Dict[str, list] = {
+            "happiness": [],
+            "health": [],
+            "love": [],
+            "freedom": [],
+            "leisure": [],
+            "wealth": [],
+            "peace": []
+        }
+        self.overall_scores: list = []
+        self.recommendations_generated: int = 0
+        self.ai_predictions_made: int = 0
+        self.chill_mode_activations: int = 0
+        self.meditation_sessions: int = 0
+        self.automations_created: int = 0
+        self.cloud_providers_registered: int = 0
+        logger.info("Wellbeing metrics initialized")
+    
+    def record_pillar_score(self, pillar: str, score: float) -> None:
+        """Record a pillar score.
+        
+        Args:
+            pillar: Pillar name (happiness, health, etc.)
+            score: Score value (0-100)
+        """
+        if pillar in self.pillar_scores:
+            self.pillar_scores[pillar].append(score)
+            self.metrics_collector.set_gauge(
+                "wellbeing_pillar_score",
+                score,
+                labels={"pillar": pillar}
+            )
+    
+    def record_overall_score(self, score: float) -> None:
+        """Record overall wellbeing score.
+        
+        Args:
+            score: Overall score (0-100)
+        """
+        self.overall_scores.append(score)
+        self.metrics_collector.set_gauge(
+            "wellbeing_overall_score",
+            score
+        )
+    
+    def record_recommendation(self, pillar: str) -> None:
+        """Record a recommendation generated.
+        
+        Args:
+            pillar: Pillar for which recommendation was generated
+        """
+        self.recommendations_generated += 1
+        self.metrics_collector.increment_counter(
+            "wellbeing_recommendations_generated",
+            labels={"pillar": pillar}
+        )
+    
+    def record_ai_prediction(self, pillar: str) -> None:
+        """Record an AI prediction.
+        
+        Args:
+            pillar: Pillar being predicted
+        """
+        self.ai_predictions_made += 1
+        self.metrics_collector.increment_counter(
+            "wellbeing_ai_predictions_made",
+            labels={"pillar": pillar}
+        )
+    
+    def record_chill_mode(self, duration_hours: float, intensity: float) -> None:
+        """Record a chill mode activation.
+        
+        Args:
+            duration_hours: Duration in hours
+            intensity: Intensity (0-1)
+        """
+        self.chill_mode_activations += 1
+        self.metrics_collector.increment_counter("wellbeing_chill_mode_activations")
+        self.metrics_collector.record_histogram(
+            "wellbeing_chill_mode_intensity",
+            intensity
+        )
+    
+    def record_meditation(self, duration_minutes: int) -> None:
+        """Record a meditation session.
+        
+        Args:
+            duration_minutes: Duration in minutes
+        """
+        self.meditation_sessions += 1
+        self.metrics_collector.increment_counter("wellbeing_meditation_sessions")
+        self.metrics_collector.record_histogram(
+            "wellbeing_meditation_duration_minutes",
+            duration_minutes
+        )
+    
+    def record_automation(self) -> None:
+        """Record automation creation."""
+        self.automations_created += 1
+        self.metrics_collector.increment_counter("wellbeing_automations_created")
+    
+    def record_cloud_provider(self, provider: str) -> None:
+        """Record cloud provider registration.
+        
+        Args:
+            provider: Provider name (AWS, Azure, GCP, etc.)
+        """
+        self.cloud_providers_registered += 1
+        self.metrics_collector.increment_counter(
+            "wellbeing_cloud_providers_registered",
+            labels={"provider": provider}
+        )
+    
+    def get_wellbeing_metrics_summary(self) -> Dict[str, Any]:
+        """Get summary of wellbeing metrics.
+        
+        Returns:
+            Dictionary with wellbeing metrics summary
+        """
+        # Calculate averages
+        pillar_averages = {}
+        for pillar, scores in self.pillar_scores.items():
+            if scores:
+                pillar_averages[pillar] = sum(scores) / len(scores)
+            else:
+                pillar_averages[pillar] = 0
+        
+        overall_average = sum(self.overall_scores) / len(self.overall_scores) if self.overall_scores else 0
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "overall_average_score": overall_average,
+            "pillar_averages": pillar_averages,
+            "metrics": {
+                "recommendations_generated": self.recommendations_generated,
+                "ai_predictions_made": self.ai_predictions_made,
+                "chill_mode_activations": self.chill_mode_activations,
+                "meditation_sessions": self.meditation_sessions,
+                "meditation_total_minutes": sum([
+                    self.meditation_sessions * 10  # Assume avg 10 min
+                ]) if self.meditation_sessions > 0 else 0,
+                "automations_created": self.automations_created,
+                "cloud_providers_registered": self.cloud_providers_registered,
+                "total_pillar_scores_recorded": sum(len(s) for s in self.pillar_scores.values()),
+            },
+            "trend": self._calculate_trend()
+        }
+    
+    def _calculate_trend(self) -> str:
+        """Calculate wellbeing trend.
+        
+        Returns:
+            Trend indicator (improving, stable, declining)
+        """
+        if len(self.overall_scores) < 2:
+            return "stable"
+        
+        recent = self.overall_scores[-5:] if len(self.overall_scores) >= 5 else self.overall_scores
+        
+        if len(recent) > 1:
+            avg_recent = sum(recent) / len(recent)
+            avg_previous = sum(self.overall_scores[:-5]) / (len(self.overall_scores) - 5) if len(self.overall_scores) > 5 else avg_recent
+            
+            if avg_recent > avg_previous + 5:
+                return "improving"
+            elif avg_recent < avg_previous - 5:
+                return "declining"
+        
+        return "stable"
+    
+    def export_prometheus_format(self) -> str:
+        """Export metrics in Prometheus format.
+        
+        Returns:
+            Prometheus format metric string
+        """
+        lines = []
+        
+        # Overall score
+        if self.overall_scores:
+            latest = self.overall_scores[-1]
+            lines.append(f"ava_wellbeing_overall_score {latest}")
+        
+        # Pillar scores
+        for pillar, scores in self.pillar_scores.items():
+            if scores:
+                latest = scores[-1]
+                lines.append(f'ava_wellbeing_pillar_score{{pillar="{pillar}"}} {latest}')
+        
+        # Counters
+        lines.append(f"ava_wellbeing_recommendations_total {self.recommendations_generated}")
+        lines.append(f"ava_wellbeing_predictions_total {self.ai_predictions_made}")
+        lines.append(f"ava_wellbeing_chill_activations_total {self.chill_mode_activations}")
+        lines.append(f"ava_wellbeing_meditation_sessions_total {self.meditation_sessions}")
+        lines.append(f"ava_wellbeing_automations_total {self.automations_created}")
+        lines.append(f"ava_wellbeing_providers_registered_total {self.cloud_providers_registered}")
+        
+        return "\n".join(lines)

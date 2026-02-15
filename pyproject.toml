@@ -41,6 +41,16 @@ dependencies = [
     "azure-storage-blob>=12.18.0",
     "google-cloud-storage>=2.10.0",
     "prometheus-client>=0.19.0",
+    # gRPC Secure Server
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "grpcio-reflection>=1.60.0",
+    "grpcio-health-checking>=1.60.0",
+    "protobuf>=4.25.0",
+    "pyjwt>=2.8.0",
+    # Production Features
+    "hvac>=2.1.0",  # HashiCorp Vault client
+    "cryptography>=42.0.0",  # TLS support
 ]
 
 [project.optional-dependencies]

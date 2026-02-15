@@ -9,6 +9,7 @@ from ava.sync.manager import SyncQueue, SyncEvent
 from ava.tasks.scheduler import TaskScheduler
 from ava.db.pool import DatabasePool
 from ava.core.logging import logger, LoggerConfig
+from ava.monitoring.metrics import WellbeingMetrics
 
 class AVA20Server:
     """Integrated AVA 2.0 server with cloud, sync, and task capabilities."""

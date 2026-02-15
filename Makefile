@@ -1,6 +1,6 @@
 # Makefile for AVA project
 
-.PHONY: help install install-dev test lint format check clean docker-build docker-dev
+.PHONY: help install install-dev test lint format check clean docker-build docker-dev proto-compile grpc-certs
 
 help:
 	@echo "AVA Project - Available targets:"
@@ -13,6 +13,8 @@ help:
 	@echo "  clean         - Clean up build artifacts"
 	@echo "  docker-build  - Build Docker image"
 	@echo "  docker-dev    - Start development container"
+	@echo "  proto-compile - Compile Protocol Buffer definitions"
+	@echo "  grpc-certs    - Generate self-signed TLS certificates for gRPC"
 
 install:
 	pip install .
@@ -47,3 +49,17 @@ docker-build:
 
 docker-dev:
 	docker-compose up
+
+proto-compile:
+	@echo "Compiling Protocol Buffer definitions..."
+	python -m grpc_tools.protoc \
+		--proto_path=ava/api/proto \
+		--python_out=ava/api/proto \
+		--grpc_python_out=ava/api/proto \
+		ava/api/proto/*.proto
+	@echo "✅ Proto files compiled successfully"
+
+grpc-certs:
+	@echo "Generating TLS/mTLS certificates for gRPC..."
+	./scripts/generate_grpc_certs.sh
+	@echo "✅ Certificates generated in ./certs/"

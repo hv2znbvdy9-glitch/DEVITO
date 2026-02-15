@@ -1,0 +1,78 @@
+# AVA Adaptive Security Platform - Multi-Stage Build
+# Production-ready Docker image
+
+FROM python:3.11-slim as builder
+
+# Build-Zeit Dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python Dependencies installieren
+WORKDIR /build
+COPY requirements.txt .
+COPY pyproject.toml .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# AVA Source kopieren
+COPY ava/ /build/ava/
+COPY setup.py /build/ 
+
+# AVA installieren
+RUN pip install --user --no-cache-dir .
+
+# =============================================================================
+# Production Image
+# =============================================================================
+
+FROM python:3.11-slim
+
+LABEL maintainer="AVA Security Team"
+LABEL org.opencontainers.image.title="AVA Adaptive Security Platform"
+LABEL org.opencontainers.image.version="4.0"
+LABEL org.opencontainers.image.description="Self-learning, adaptive security platform"
+
+# Runtime Dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Security: Non-root user
+RUN groupadd -r ava && useradd -r -g ava ava
+
+# Python Dependencies aus Builder kopieren
+COPY --from=builder /root/.local /home/ava/.local
+
+# AVA Application
+WORKDIR /app
+COPY --from=builder /build/ava /app/ava
+COPY launch_adaptive_security.py /app/
+COPY README.md /app/
+COPY ADAPTIVE_SECURITY.md /app/docs/
+
+# Data Directory
+RUN mkdir -p /data/ava && chown -R ava:ava /data/ava /app
+
+# Environment
+ENV PATH=/home/ava/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    AVA_HOME=/data/ava \
+    LOG_LEVEL=INFO
+
+# Expose Ports
+# 9090: Prometheus Metrics
+# 8765: Security Mesh
+EXPOSE 9090 8765
+
+# Health Check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:9090/health || exit 1
+
+# Switch to non-root
+USER ava
+
+# Default: Run Orchestrator
+CMD ["python", "launch_adaptive_security.py", "monitor"]

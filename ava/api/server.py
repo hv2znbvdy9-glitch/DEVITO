@@ -1,12 +1,17 @@
-"""REST API Server for AVA."""
+"""REST API Server for AVA - SECURE VERSION (Devito Only)."""
 
 from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 import asyncio
 from ava.core.engine import Engine
 from ava.core.logging import logger
+from ava.api.wellbeing import router as wellbeing_router, init_wellbeing_api
+from ava.monitoring.metrics import MetricsCollector
+from ava.security_middleware import apply_security_middleware
+from ava.api.admin import admin_router, admin_page_router
 
 # Data Models
 class TaskCreate(BaseModel):
@@ -30,19 +35,45 @@ class StatsResponse(BaseModel):
 
 # Initialize FastAPI
 app = FastAPI(
-    title="AVA API",
-    description="Advanced Virtual Assistant REST API",
-    version="2.0.0"
+    title="AVA Security System",
+    description="AVA Wellbeing Platform - SECURE (Devito Only) 🔒🌟",
+    version="3.0.0"
 )
+
+# ✅ SECURITY: Apply Security Middleware FIRST (before CORS)
+apply_security_middleware(app)
+
+# Enable CORS (restricted to localhost only)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://localhost:8443"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Limited methods
+    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+)
+
+# Initialize metrics
+metrics = MetricsCollector()
 
 # Global engine
 engine = Engine()
 connected_clients: List[WebSocket] = []
 
+# Include Routers
+app.include_router(wellbeing_router)
+app.include_router(admin_router)  # 🔒 Admin Console (Devito Only)
+app.include_router(admin_page_router)
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize AVA on startup."""
     logger.info("🚀 AVA API Server starting...")
+    await init_wellbeing_api()
+    logger.info("✅ Wellbeing API initialized")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -146,3 +177,40 @@ async def broadcast_update(message: dict):
             await client.send_json(message)
         except Exception as e:
             logger.error(f"Error broadcasting to client: {e}")
+
+# Prometheus Metrics Endpoint
+@app.get("/metrics")
+async def get_metrics() -> str:
+    """Get Prometheus metrics.
+    
+    Returns:
+        Metrics in Prometheus format
+    """
+    from ava.monitoring.metrics import WellbeingMetrics
+    
+    wellbeing_metrics = WellbeingMetrics()
+    return wellbeing_metrics.export_prometheus_format()
+
+
+# Extended Stats with Wellbeing
+@app.get("/stats/extended")
+async def get_extended_stats() -> dict:
+    """Get extended statistics including wellbeing.
+    
+    Returns:
+        Extended stats dictionary
+    """
+    from ava.monitoring.metrics import WellbeingMetrics
+    
+    stats = engine.get_stats()
+    wellbeing_metrics = WellbeingMetrics()
+    
+    return {
+        "task_stats": {
+            "total_tasks": stats["total_tasks"],
+            "completed_tasks": stats["completed_tasks"],
+            "pending_tasks": stats["pending_tasks"],
+        },
+        "wellbeing_metrics": wellbeing_metrics.get_wellbeing_metrics_summary(),
+        "timestamp": datetime.now().isoformat()
+    }

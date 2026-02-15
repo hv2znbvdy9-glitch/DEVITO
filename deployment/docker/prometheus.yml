@@ -1,0 +1,41 @@
+# Prometheus Configuration for AVA Adaptive Security
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: 'ava-security'
+    environment: 'production'
+
+# Scrape Configurations
+scrape_configs:
+  # AVA Orchestrator
+  - job_name: 'ava-orchestrator'
+    static_configs:
+      - targets: ['orchestrator:9090']
+        labels:
+          component: 'orchestrator'
+          node_type: 'cloud'
+
+  # AVA Network IDS
+  - job_name: 'ava-network-ids'
+    static_configs:
+      - targets: ['network-ids:9090']
+        labels:
+          component: 'network-ids'
+          node_type: 'edge'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+# Alerting (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Recording Rules (optional)
+# rule_files:
+#   - '/etc/prometheus/rules/*.yml'

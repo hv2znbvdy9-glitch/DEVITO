@@ -1,0 +1,442 @@
+{
+  "dashboard": {
+    "title": "AVA Adaptive Security Platform v4.0",
+    "tags": ["ava", "security", "adaptive", "self-learning"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "type": "stat",
+        "title": "🎯 Global Security Score",
+        "targets": [
+          {
+            "expr": "ava_security_global_score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 50, "color": "orange"},
+                {"value": 70, "color": "yellow"},
+                {"value": 90, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background"
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "type": "stat",
+        "title": "System Uptime",
+        "targets": [
+          {
+            "expr": "ava_security_uptime_seconds",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "type": "stat",
+        "title": "🛡️ Network Threats Detected",
+        "targets": [
+          {
+            "expr": "sum(increase(ava_security_network_threats_detected_total[24h]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 100, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "type": "stat",
+        "title": "🧠 Patterns Learned (24h)",
+        "targets": [
+          {
+            "expr": "sum(increase(ava_security_network_patterns_learned_total[24h])) + sum(increase(ava_security_cookie_patterns_learned_total[24h]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "purple"}
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "type": "graph",
+        "title": "🔍 Network Scan Rate",
+        "targets": [
+          {
+            "expr": "sum(rate(ava_security_network_scans_total[5m])) by (result)",
+            "legendFormat": "{{result}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Scans/sec"},
+          {"format": "short"}
+        ],
+        "legend": {
+          "show": true,
+          "values": true,
+          "current": true
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "type": "graph",
+        "title": "🍪 Cookie Threat Detection",
+        "targets": [
+          {
+            "expr": "sum(rate(ava_security_cookie_threats_found_total[5m])) by (threat_type)",
+            "legendFormat": "{{threat_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Threats/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+        "type": "stat",
+        "title": "Blacklisted IPs",
+        "targets": [
+          {
+            "expr": "ava_security_network_blacklist_size{type=\"ip\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "red"}
+          }
+        }
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
+        "type": "stat",
+        "title": "Blacklisted MACs",
+        "targets": [
+          {
+            "expr": "ava_security_network_blacklist_size{type=\"mac\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "red"}
+          }
+        }
+      },
+      {
+        "id": 9,
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12},
+        "type": "stat",
+        "title": "Unique Fingerprints",
+        "targets": [
+          {
+            "expr": "ava_security_network_fingerprints_total",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "blue"}
+          }
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "type": "graph",
+        "title": "🌐 Mesh Nodes by State",
+        "targets": [
+          {
+            "expr": "ava_security_mesh_nodes_total",
+            "legendFormat": "{{state}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Nodes"},
+          {"format": "short"}
+        ],
+        "stack": true
+      },
+      {
+        "id": 11,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "type": "graph",
+        "title": "⚡ Interface Protection by Type",
+        "targets": [
+          {
+            "expr": "sum(rate(ava_security_interface_requests_total[5m])) by (interface_type, action)",
+            "legendFormat": "{{interface_type}} - {{action}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 12,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "type": "heatmap",
+        "title": "Network Trust Score Distribution",
+        "targets": [
+          {
+            "expr": "sum(rate(ava_security_network_trust_score_bucket[5m])) by (le)",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ],
+        "dataFormat": "tsbuckets"
+      },
+      {
+        "id": 13,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "type": "heatmap",
+        "title": "Interface Threat Score Distribution",
+        "targets": [
+          {
+            "expr": "sum(rate(ava_security_interface_threat_score_bucket[5m])) by (le, interface_type)",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 36},
+        "type": "stat",
+        "title": "Active Mesh Policies",
+        "targets": [
+          {
+            "expr": "ava_security_mesh_policies_active",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "purple"}
+          }
+        }
+      },
+      {
+        "id": 15,
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 36},
+        "type": "stat",
+        "title": "Shared Threat Signatures",
+        "targets": [
+          {
+            "expr": "ava_security_mesh_shared_intelligence{type=\"threat_signatures\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "orange"}
+          }
+        }
+      },
+      {
+        "id": 16,
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 36},
+        "type": "stat",
+        "title": "Cookie Blacklist Size",
+        "targets": [
+          {
+            "expr": "sum(ava_security_cookie_blacklist_size)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "red"}
+          }
+        }
+      },
+      {
+        "id": 17,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 44},
+        "type": "graph",
+        "title": "🧠 Self-Learning Activity",
+        "targets": [
+          {
+            "expr": "rate(ava_security_network_patterns_learned_total[5m])",
+            "legendFormat": "Network Patterns",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(ava_security_cookie_patterns_learned_total[5m])",
+            "legendFormat": "Cookie Patterns",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Patterns Learned/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 18,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+        "type": "graph",
+        "title": "Mesh Event Rate by Severity",
+        "targets": [
+          {
+            "expr": "sum(rate(ava_security_mesh_events_total[5m])) by (severity)",
+            "legendFormat": "Severity {{severity}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Events/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 19,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 52},
+        "type": "table",
+        "title": "Top Threat Types (24h)",
+        "targets": [
+          {
+            "expr": "topk(10, sum(increase(ava_security_network_threats_detected_total[24h])) by (threat_level))",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          },
+          {
+            "expr": "topk(10, sum(increase(ava_security_cookie_threats_found_total[24h])) by (threat_type))",
+            "format": "table",
+            "instant": true,
+            "refId": "B"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge",
+            "options": {}
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "threat_level": "Threat Level",
+                "threat_type": "Threat Type",
+                "Value": "Count (24h)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "gridPos": {"h": 4, "w": 24, "x": 0, "y": 60},
+        "type": "table",
+        "title": "System Information",
+        "targets": [
+          {
+            "expr": "ava_security_system_info",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "interface_type",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(ava_security_interface_requests_total, interface_type)",
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "mesh_node",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(ava_security_mesh_nodes_total, node_id)",
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Security Events",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "changes(ava_security_network_threats_detected_total[1m]) > 0",
+          "iconColor": "red",
+          "tagKeys": "threat_level"
+        },
+        {
+          "name": "Pattern Learning",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "changes(ava_security_network_patterns_learned_total[1m]) > 0",
+          "iconColor": "purple",
+          "tagKeys": "pattern_type"
+        }
+      ]
+    }
+  }
+}

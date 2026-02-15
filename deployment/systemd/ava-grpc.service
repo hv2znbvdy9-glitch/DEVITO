@@ -1,0 +1,73 @@
+[Unit]
+Description=AVA gRPC Secure Server
+Documentation=https://github.com/ava-system/ava
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/ava
+
+[Service]
+Type=simple
+User=ava
+Group=ava
+WorkingDirectory=/opt/ava
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+Environment="AVA_ENV=production"
+EnvironmentFile=-/etc/ava/grpc.env
+EnvironmentFile=-/etc/ava/vault.env
+
+# Executable
+ExecStart=/opt/ava/venv/bin/python -m ava.api.grpc_server
+
+# Restart Policy
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=5min
+StartLimitBurst=3
+
+# Resource Limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryLimit=2G
+CPUQuota=200%
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/ava /var/lib/ava /tmp/ava_certs
+ReadOnlyPaths=/etc/ava
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+PrivateDevices=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Capabilities (nur benötigte)
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Systemd-Features
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ava-grpc
+
+# Health-Check (optional, mit sd-notify)
+# WatchdogSec=60
+
+[Install]
+WantedBy=multi-user.target

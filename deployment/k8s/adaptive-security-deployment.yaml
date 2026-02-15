@@ -1,0 +1,386 @@
+---
+# AVA Adaptive Security Platform - Kubernetes Deployment
+# Deployment für selbst-lernende Security Services
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ava-security
+  labels:
+    app: ava-adaptive-security
+    version: "4.0"
+
+---
+# ConfigMap für Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ava-security-config
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+data:
+  LOG_LEVEL: "INFO"
+  METRICS_PORT: "9090"
+  MESH_PORT: "8765"
+  LEARNING_ENABLED: "true"
+  AUTO_BLACKLIST: "true"
+  TRUST_THRESHOLD: "50"
+
+---
+# PersistentVolumeClaim für Pattern Storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ava-security-patterns
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+
+---
+# Deployment - Adaptive Security Orchestrator
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ava-adaptive-orchestrator
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+    component: orchestrator
+spec:
+  replicas: 1  # Single orchestrator per cluster
+  strategy:
+    type: Recreate  # Ensure only one instance
+  selector:
+    matchLabels:
+      app: ava-adaptive-security
+      component: orchestrator
+  template:
+    metadata:
+      labels:
+        app: ava-adaptive-security
+        component: orchestrator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ava-security
+      containers:
+      - name: orchestrator
+        image: ava-security/adaptive-orchestrator:4.0
+        imagePullPolicy: IfNotPresent
+        command:
+          - python
+          - /app/launch_adaptive_security.py
+          - monitor
+        ports:
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        - name: mesh
+          containerPort: 8765
+          protocol: TCP
+        env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ava-security-config
+              key: LOG_LEVEL
+        - name: METRICS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ava-security-config
+              key: METRICS_PORT
+        - name: MESH_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ava-security-config
+              key: MESH_PORT
+        - name: NODE_TYPE
+          value: "cloud"
+        - name: AVA_HOME
+          value: "/data/ava"
+        volumeMounts:
+        - name: patterns
+          mountPath: /data/ava
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+      volumes:
+      - name: patterns
+        persistentVolumeClaim:
+          claimName: ava-security-patterns
+      restartPolicy: Always
+
+---
+# Deployment - Network IDS Nodes (Edge detection)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ava-network-ids
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+    component: network-ids
+spec:
+  selector:
+    matchLabels:
+      app: ava-adaptive-security
+      component: network-ids
+  template:
+    metadata:
+      labels:
+        app: ava-adaptive-security
+        component: network-ids
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      hostNetwork: true  # Required for network scanning
+      serviceAccountName: ava-security
+      containers:
+      - name: network-ids
+        image: ava-security/adaptive-ids:4.0
+        imagePullPolicy: IfNotPresent
+        command:
+          - python
+          - -m
+          - ava.security.adaptive_ids
+        ports:
+        - name: metrics
+          containerPort: 9090
+        env:
+        - name: NODE_TYPE
+          value: "edge"
+        - name: AUTO_BLACKLIST
+          valueFrom:
+            configMapKeyRef:
+              name: ava-security-config
+              key: AUTO_BLACKLIST
+        - name: TRUST_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: ava-security-config
+              key: TRUST_THRESHOLD
+        volumeMounts:
+        - name: patterns
+          mountPath: /data/ava
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+              - NET_ADMIN  # Required for network scanning
+            drop:
+              - ALL
+      volumes:
+      - name: patterns
+        persistentVolumeClaim:
+          claimName: ava-security-patterns
+
+---
+# Service - Orchestrator
+apiVersion: v1
+kind: Service
+metadata:
+  name: ava-orchestrator
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+    component: orchestrator
+spec:
+  type: ClusterIP
+  selector:
+    app: ava-adaptive-security
+    component: orchestrator
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  - name: mesh
+    port: 8765
+    targetPort: 8765
+    protocol: TCP
+
+---
+# Service - Metrics (Headless for Prometheus)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ava-security-metrics
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service
+  selector:
+    app: ava-adaptive-security
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ava-security
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+
+---
+# Role für Security Operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ava-security
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ava-security
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ava-security
+subjects:
+- kind: ServiceAccount
+  name: ava-security
+  namespace: ava-security
+
+---
+# ServiceMonitor für Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ava-security
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: ava-adaptive-security
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+# NetworkPolicy - Restrict Traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ava-security-netpol
+  namespace: ava-security
+  labels:
+    app: ava-adaptive-security
+spec:
+  podSelector:
+    matchLabels:
+      app: ava-adaptive-security
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  # Allow mesh communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app: ava-adaptive-security
+    ports:
+    - protocol: TCP
+      port: 8765
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow mesh communication
+  - to:
+    - podSelector:
+        matchLabels:
+          app: ava-adaptive-security
+    ports:
+    - protocol: TCP
+      port: 8765
+  # Allow external threat intelligence
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443

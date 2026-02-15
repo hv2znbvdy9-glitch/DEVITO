@@ -13,5 +13,11 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -e .
 
+# Create non-root user and switch to it
+RUN useradd -m -u 1000 -s /bin/bash appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
 # Run the application
 CMD ["python", "-m", "ava"]

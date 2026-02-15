@@ -1,0 +1,337 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "ava-wellbeing",
+    "title": "AVA Wellbeing Dashboard \ud83c\udf1f",
+    "tags": [
+      "ava",
+      "wellbeing",
+      "7-pillars"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Overall Wellbeing Score \ud83c\udf1f",
+        "type": "gauge",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_overall_score",
+            "legendFormat": "Overall Score",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true,
+          "min": 0,
+          "max": 100
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 33
+                },
+                {
+                  "color": "yellow",
+                  "value": 66
+                },
+                {
+                  "color": "green",
+                  "value": 80
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "7-Pillars Overview \ud83c\udfdb\ufe0f",
+        "type": "piechart",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score",
+            "legendFormat": "{{pillar}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Happiness Score \ud83d\udc9a",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"happiness\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Health Score \ud83c\udfe5",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"health\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Love Score \ud83d\udc95",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"love\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Freedom Score \ud83e\udd85",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"freedom\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Leisure Score \ud83c\udf34",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"leisure\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Wealth Score \ud83d\udcb0",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"wealth\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Peace Score \ud83e\uddd8",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score{pillar=\"peace\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Recommendations Generated \ud83d\udca1",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 8,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_recommendations_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "AI Predictions Made \ud83d\udd2e",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 14,
+          "y": 12
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_predictions_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Chill Mode Activations \ud83e\uddca",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_chill_activations_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Meditation Sessions \ud83e\uddd8",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_meditation_sessions_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Automations Created \ud83e\udd16",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_automations_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Cloud Providers Registered \u2601\ufe0f",
+        "type": "stat",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_providers_registered_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Wellbeing Trend \ud83d\udcc8",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 20
+        },
+        "targets": [
+          {
+            "expr": "ava_wellbeing_pillar_score",
+            "legendFormat": "{{pillar}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
