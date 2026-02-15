@@ -1,0 +1,61 @@
+{
+  "interface_guard": {
+    "total_interfaces": 10,
+    "total_attempts": 6,
+    "total_blocked": 0,
+    "total_destroyed": 5,
+    "block_rate": "0.0%",
+    "destruction_rate": "83.3%",
+    "whitelist_size": 3,
+    "annihilations": 0,
+    "blacklisted_ips": 0
+  },
+  "annihilation_engine": {
+    "threshold": 0.1,
+    "total_annihilations": 0,
+    "blacklisted_ips": 0,
+    "comparison": "50x MORE AGGRESSIVE than v1.0 (0.1 vs 5.0)"
+  },
+  "aggressive_defense": {
+    "mode": "AGGRESSIVE_DEFENSE",
+    "zero_tolerance": true,
+    "total_threats": 1,
+    "total_blocked": 0,
+    "total_destroyed": 0,
+    "block_rate": "0.0%",
+    "blacklisted_ips": 0,
+    "threat_profiles": 0,
+    "block_threshold": 0.1
+  },
+  "zero_trust_firewall": {
+    "mode": "ZERO_TRUST",
+    "default_action": "DENY",
+    "whitelisted_ips": 2,
+    "total_requests": 1,
+    "total_denied": 0,
+    "deny_rate": "0.0%"
+  },
+  "honeypot_system": {
+    "total_sessions": 5,
+    "active_sessions": 5,
+    "completed_sessions": 0,
+    "unique_attacker_ips": 3,
+    "known_attack_patterns": [
+      "probe",
+      "sql_injection",
+      "port_scan"
+    ],
+    "attacker_ips": [
+      "10.0.0.50",
+      "198.51.100.99",
+      "192.168.1.100"
+    ],
+    "session_details": []
+  },
+  "threat_intelligence": {
+    "blacklisted_ips": [],
+    "threat_profiles": {},
+    "total_threats_blocked": 0,
+    "generated": "2026-02-15T18:52:20.947828"
+  }
+}
