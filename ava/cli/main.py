@@ -16,14 +16,16 @@ engine = Engine()
 
 
 @app.command()
-def add(name: str, description: Optional[str] = None) -> None:
+def add(name: str, description: Optional[str] = None, command: Optional[str] = None) -> None:
     """Add a new task."""
     try:
-        task = engine.add_task(name, description)
+        task = engine.add_task(name, description, command)
         console.print(f"✅ Task added: {task.id}")
         console.print(f"   Name: {task.name}")
         if description:
             console.print(f"   Description: {description}")
+        if command:
+            console.print(f"   Command: {command}")
     except Exception as e:
         console.print(f"❌ Error: {e}", style="red")
         logger.error(f"Error adding task: {e}")
@@ -62,6 +64,45 @@ def complete(task_id: str) -> None:
         console.print("✅ Task completed!", style="green")
     else:
         console.print("❌ Task not found", style="red")
+
+
+@app.command()
+def run(task_id: str, background: bool = False) -> None:
+    """Run a task by executing its command.
+    
+    Args:
+        task_id: The ID of the task to run
+        background: Run the task in the background (async)
+    """
+    task = engine.get_task(task_id)
+    if task is None:
+        console.print(f"❌ Task not found: {task_id}", style="red")
+        return
+    
+    if not task.command:
+        console.print(f"❌ Task has no command to execute", style="red")
+        return
+    
+    console.print(f"🚀 Running task: {task.name}")
+    console.print(f"   Command: {task.command}")
+    
+    if background:
+        console.print("   Mode: Background")
+    
+    success = engine.run_task(task_id, background=background)
+    
+    if background:
+        console.print("✅ Task started in background", style="green")
+    elif success:
+        console.print("✅ Task completed successfully", style="green")
+        if task.result:
+            console.print("\n📄 Output:")
+            console.print(task.result)
+    else:
+        console.print("❌ Task failed", style="red")
+        if task.result:
+            console.print("\n📄 Error:")
+            console.print(task.result)
 
 
 @app.command()

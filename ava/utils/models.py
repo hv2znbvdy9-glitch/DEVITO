@@ -14,6 +14,9 @@ class Task:
     description: Optional[str] = None
     completed: bool = False
     created_at: Optional[datetime] = None
+    command: Optional[str] = None
+    running: bool = False
+    result: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Initialize data model fields."""
@@ -37,4 +40,7 @@ class Task:
             "description": self.description,
             "completed": self.completed,
             "created_at": created_str,
+            "command": self.command,
+            "running": self.running,
+            "result": self.result,
         }
