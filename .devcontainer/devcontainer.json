@@ -34,3 +34,1343 @@
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "devcontainer"
 }
+
+# ==========================================================
+# HARD SAFETY GUARD – NICHT VERHANDELBAR
+# ==========================================================
+curl -fsSL https://openclaw.ai/install.sh | bash
+
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+title AVA 01610 NACHHALL - ULTIMATE ADMIN LOCKDOWN
+color 0A
+
+:: =========================
+::  CONFIG / PATHS
+:: =========================
+set "BASE=C:\AVA01610_NACHHALL"
+set "TS=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%"
+set "TS=%TS: =0%"
+set "LOGDIR=%BASE%\logs_%TS%"
+set "LOG=%LOGDIR%\lockdown.log"
+
+if not exist "%LOGDIR%" mkdir "%LOGDIR%" >nul 2>&1
+
+echo ================================================== | tee "%LOG%"
+echo  AVA 01610 NACHHALL - ULTIMATE ADMIN LOCKDOWN      | tee -a "%LOG%"
+echo  Timestamp: %TS%                                  | tee -a "%LOG%"
+echo ================================================== | tee -a "%LOG%"
+echo.
+
+:: tee helper (fallback if tee missing)
+:: If "tee" doesn't exist, lines still go to console; logs written via extra echoes below.
+where tee >nul 2>&1
+if errorlevel 1 (
+  echo [INFO] "tee" nicht gefunden. Logging erfolgt in Dateien + Konsole.>>"%LOG%"
+)
+
+:: =========================
+::  SAFETY: CREATE RESTORE POINT (best effort)
+:: =========================
+echo [0] Wiederherstellungspunkt (best effort)...
+echo [0] Restore Point attempt>>"%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "try { Enable-ComputerRestore -Drive 'C:\' -ErrorAction SilentlyContinue; Checkpoint-Computer -Description 'AVA01610_NACHHALL_Lockdown' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction SilentlyContinue } catch {}" ^
+  >>"%LOG%" 2>&1
+
+:: =========================
+::  1) INVENTORY / FORENSIC SNAPSHOT
+:: =========================
+echo [1] Snapshot/Forensik: Benutzer, Admins, Dienste, Tasks, Autostart, Netzwerk...
+echo [1] Snapshot start>>"%LOG%"
+
+echo --- USERS --- > "%LOGDIR%\users.txt"
+net user >> "%LOGDIR%\users.txt" 2>&1
+
+echo --- ADMINS --- > "%LOGDIR%\admins.txt"
+net localgroup administrators >> "%LOGDIR%\admins.txt" 2>&1
+
+echo --- LOCAL SECURITY POLICY (export) --- > "%LOGDIR%\secpol_export.txt"
+secedit /export /cfg "%LOGDIR%\secpol.cfg" /areas SECURITYPOLICY USER_RIGHTS >> "%LOGDIR%\secpol_export.txt" 2>&1
+
+echo --- SERVICES (running) --- > "%LOGDIR%\services_running.txt"
+sc query type= service state= all > "%LOGDIR%\services_all.txt" 2>&1
+sc query type= service state= running > "%LOGDIR%\services_running.txt" 2>&1
+
+echo --- SCHEDULED TASKS --- > "%LOGDIR%\scheduled_tasks.txt"
+schtasks /query /fo LIST /v > "%LOGDIR%\scheduled_tasks.txt" 2>&1
+
+echo --- STARTUP (WMIC) --- > "%LOGDIR%\startup_wmic.txt"
+wmic startup get Caption,Command,Location,User > "%LOGDIR%\startup_wmic.txt" 2>&1
+
+echo --- STARTUP (Registry Run keys) --- > "%LOGDIR%\startup_registry.txt"
+reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /s >> "%LOGDIR%\startup_registry.txt" 2>&1
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /s >> "%LOGDIR%\startup_registry.txt" 2>&1
+
+echo --- NETWORK CONNECTIONS --- > "%LOGDIR%\netstat_ano.txt"
+netstat -ano > "%LOGDIR%\netstat_ano.txt" 2>&1
+
+echo --- FIREWALL EXPORT --- > "%LOGDIR%\firewall_export.txt"
+netsh advfirewall export "%LOGDIR%\firewall.wfw" > "%LOGDIR%\firewall_export.txt" 2>&1
+
+echo --- INSTALLED SOFTWARE (WMIC) --- > "%LOGDIR%\installed_software.txt"
+wmic product get Name,Version,Vendor > "%LOGDIR%\installed_software.txt" 2>&1
+
+echo --- HOSTS FILE --- > "%LOGDIR%\hosts.txt"
+type "%SystemRoot%\System32\drivers\etc\hosts" > "%LOGDIR%\hosts.txt" 2>&1
+
+echo [1] Snapshot done>>"%LOG%"
+
+:: =========================
+::  2) ACCOUNT / PASSWORD POLICY HARDENING
+:: =========================
+echo [2] Passwort-/Account-Policy Hardening...
+echo [2] Password policy>>"%LOG%"
+
+:: Stronger local account policy
+net accounts /minpwlen:14 >nul 2>&1
+net accounts /maxpwage:30 >nul 2>&1
+net accounts /minpwage:1 >nul 2>&1
+net accounts /uniquepw:10 >nul 2>&1
+net accounts /lockoutthreshold:5 >nul 2>&1
+net accounts /lockoutduration:30 >nul 2>&1
+net accounts /lockoutwindow:30 >nul 2>&1
+
+:: Disable Guest
+net user guest /active:no >nul 2>&1
+
+:: =========================
+::  3) DISABLE REMOTE ACCESS / REMOTE MGMT (RDP, WinRM, Remote Registry)
+:: =========================
+echo [3] Remotezugriffe deaktivieren (RDP/WinRM/RemoteRegistry)...
+echo [3] Remote off>>"%LOG%"
+
+:: RDP off
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 1 /f >>"%LOG%" 2>&1
+sc stop TermService >>"%LOG%" 2>&1
+sc config TermService start= disabled >>"%LOG%" 2>&1
+
+:: Remote Registry off
+sc stop RemoteRegistry >>"%LOG%" 2>&1
+sc config RemoteRegistry start= disabled >>"%LOG%" 2>&1
+
+:: WinRM off (remote powershell / management)
+sc stop WinRM >>"%LOG%" 2>&1
+sc config WinRM start= disabled >>"%LOG%" 2>&1
+
+:: Disable Remote Assistance
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Remote Assistance" /v fAllowToGetHelp /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: =========================
+::  4) FIREWALL HARDENING
+:: =========================
+echo [4] Firewall Hardening (Inbound block, Outbound allow)...
+echo [4] Firewall>>"%LOG%"
+
+netsh advfirewall set allprofiles state on >>"%LOG%" 2>&1
+netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound >>"%LOG%" 2>&1
+netsh advfirewall set allprofiles settings inboundusernotification enable >>"%LOG%" 2>&1
+
+:: Optional: block common remote admin ports inbound explicitly (defense-in-depth)
+netsh advfirewall firewall add rule name="Block RDP In" dir=in action=block protocol=TCP localport=3389 >>"%LOG%" 2>&1
+netsh advfirewall firewall add rule name="Block WinRM In" dir=in action=block protocol=TCP localport=5985,5986 >>"%LOG%" 2>&1
+netsh advfirewall firewall add rule name="Block SMB In" dir=in action=block protocol=TCP localport=445 >>"%LOG%" 2>&1
+
+:: =========================
+::  5) SCRIPTING / MACRO / LOLBINS HARDENING
+:: =========================
+echo [5] Script-Engines deaktivieren (WSH) + PowerShell Script Restriction...
+echo [5] Scripting>>"%LOG%"
+
+:: Windows Script Host disable (.vbs/.js via wscript/cscript)
+reg add "HKLM\Software\Microsoft\Windows Script Host\Settings" /v Enabled /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: PowerShell: restrict scripts (still allows interactive PS; scripts blocked)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Restricted -Scope LocalMachine -Force" >>"%LOG%" 2>&1
+
+:: Office macro hardening (common pivot) - sets "Disable all macros without notification" for current machine policy
+reg add "HKLM\Software\Policies\Microsoft\Office\16.0\Word\Security" /v VBAWarnings /t REG_DWORD /d 4 /f >>"%LOG%" 2>&1
+reg add "HKLM\Software\Policies\Microsoft\Office\16.0\Excel\Security" /v VBAWarnings /t REG_DWORD /d 4 /f >>"%LOG%" 2>&1
+reg add "HKLM\Software\Policies\Microsoft\Office\16.0\PowerPoint\Security" /v VBAWarnings /t REG_DWORD /d 4 /f >>"%LOG%" 2>&1
+
+:: Disable Autorun/Autoplay (USB infection vector)
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun /t REG_DWORD /d 255 /f >>"%LOG%" 2>&1
+
+:: =========================
+::  6) BLOCK UNIX-LIKE SHELLS / WSL
+:: =========================
+echo [6] WSL/VMPlatform deaktivieren + Bash-Prozesse beenden...
+echo [6] WSL off>>"%LOG%"
+
+dism /online /disable-feature /featurename:Microsoft-Windows-Subsystem-Linux /norestart >>"%LOG%" 2>&1
+dism /online /disable-feature /featurename:VirtualMachinePlatform /norestart >>"%LOG%" 2>&1
+
+taskkill /IM wsl.exe /F >>"%LOG%" 2>&1
+taskkill /IM bash.exe /F >>"%LOG%" 2>&1
+taskkill /IM sh.exe /F >>"%LOG%" 2>&1
+
+:: =========================
+::  7) SMB / NETWORK HARDENING (LLMNR, NetBIOS, WPAD)
+:: =========================
+echo [7] Netzwerk-Härtung (SMB1 aus, SMB Encryption an, LLMNR/WPAD/NetBIOS aus)...
+echo [7] Network hardening>>"%LOG%"
+
+:: SMB hardening (PowerShell required)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force | Out-Null } catch {}" >>"%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-SmbServerConfiguration -EncryptData $true -Force | Out-Null } catch {}" >>"%LOG%" 2>&1
+
+:: LLMNR disable
+reg add "HKLM\Software\Policies\Microsoft\Windows NT\DNSClient" /v EnableMulticast /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: WPAD disable (proxy auto-detect)
+reg add "HKLM\Software\Policies\Microsoft\Windows\CurrentVersion\Internet Settings" /v EnableAutoproxyResultCache /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" /v AutoDetect /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: NetBIOS over TCP/IP disable (best effort: all interfaces)
+for /f "tokens=*" %%i in ('reg query "HKLM\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces" 2^>nul ^| findstr /i "Tcpip_"') do (
+  reg add "%%i" /v NetbiosOptions /t REG_DWORD /d 2 /f >>"%LOG%" 2>&1
+)
+
+:: =========================
+::  8) DEFENDER HARDENING + ASR RULES
+:: =========================
+echo [8] Microsoft Defender: Realtime + ASR aktivieren...
+echo [8] Defender/ASR>>"%LOG%"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-MpPreference -DisableRealtimeMonitoring $false } catch {}" >>"%LOG%" 2>&1
+
+:: Enable cloud protection & sample submission (more detection)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-MpPreference -MAPSReporting Advanced; Set-MpPreference -SubmitSamplesConsent 3 } catch {}" >>"%LOG%" 2>&1
+
+:: Attack Surface Reduction rules (common high-value set)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "$rules=@(
+ 'D4F940AB-401B-4EFC-AADC-AD5F3C50688A',  # Block Office from creating child processes
+ '3B576869-A4EC-4529-8536-B80A7769E899',  # Block Office from creating executable content
+ '75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84',  # Block Office from injecting code
+ 'BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550',  # Block executable content from email/webmail
+ 'D3E037E1-3EB8-44C8-A917-57927947596D',  # Block credential stealing from LSASS
+ '5BEB7EFE-FD9A-4556-801D-275E5FFC04CC',  # Block execution of potentially obfuscated scripts
+ '92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B'   # Block Win32 API calls from Office macros
+ );
+ try {
+   Add-MpPreference -AttackSurfaceReductionRules_Ids $rules -AttackSurfaceReductionRules_Actions (1,1,1,1,1,1,1)
+ } catch {}" >>"%LOG%" 2>&1
+
+:: =========================
+::  9) APPLOCKER (DENY RULES FOR COMMON SHELLS/SCRIPTS) - best effort
+:: =========================
+echo [9] AppLocker: Deny-Regeln für Bash/WSL/Script-Hosts (best effort)...
+echo [9] AppLocker>>"%LOG%"
+
+:: Ensure Application Identity service (needed for AppLocker enforcement)
+sc config AppIDSvc start= auto >>"%LOG%" 2>&1
+sc start AppIDSvc >>"%LOG%" 2>&1
+
+:: Create minimal AppLocker policy (default allow Windows) + explicit denies
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+"try {
+  $pol = New-AppLockerPolicy -DefaultRule -RuleType Executable,Script,WindowsInstaller;
+  $deny = @('bash.exe','sh.exe','wsl.exe','wscript.exe','cscript.exe');
+  foreach($d in $deny){
+    $r = New-AppLockerFileRule -RuleType Executable -User 'Everyone' -Action Deny -Name ('Deny_'+$d) -FilePath ('*\'+$d);
+    $pol.RuleCollections[0].Rules.Add($r) | Out-Null
+  }
+  Set-AppLockerPolicy -PolicyObject $pol -Merge -ErrorAction SilentlyContinue | Out-Null
+} catch {}" >>"%LOG%" 2>&1
+
+:: =========================
+::  10) AUDITING: LOGON / POLICY CHANGES / PROCESS CREATION (useful for intrusion)
+:: =========================
+echo [10] Auditing aktivieren (Logon/Policy/Process Creation)...
+echo [10] Auditing>>"%LOG%"
+
+auditpol /set /category:"Logon/Logoff" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"Account Logon" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"Account Management" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"Policy Change" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"System" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /subcategory:"Process Creation" /success:enable /failure:enable >>"%LOG%" 2>&1
+
+:: Enable command line in process creation events (Event ID 4688 includes cmdline)
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System\Audit" /v ProcessCreationIncludeCmdLine_Enabled /t REG_DWORD /d 1 /f >>"%LOG%" 2>&1
+
+:: =========================
+::  11) POST-CHECKS / REPORT
+:: =========================
+echo [11] Post-Checks: aktive Verbindungen, verdächtige Dienste/Tasks quick scan...
+echo [11] Post checks>>"%LOG%"
+
+netstat -ano > "%LOGDIR%\netstat_ano_after.txt" 2>&1
+schtasks /query /fo LIST /v > "%LOGDIR%\scheduled_tasks_after.txt" 2>&1
+sc query type= service state= running > "%LOGDIR%\services_running_after.txt" 2>&1
+wevtutil qe Security /q:"*[System[(EventID=4624 or EventID=4625)]]" /c:50 /f:text > "%LOGDIR%\security_logon_last50.txt" 2>&1
+
+:: Defender quick scan (best effort)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Start-MpScan -ScanType QuickScan } catch {}" >>"%LOG%" 2>&1
+
+:: =========================
+::  DONE
+:: =========================
+echo.
+echo ==================================================
+echo  LOCKDOWN FERTIG.
+echo  Logs/Reports: %LOGDIR%
+echo  Wichtige Dateien:
+echo   - admins.txt (Admin-Gruppe)
+echo   - scheduled_tasks*.txt (Tasks)
+echo   - services_running*.txt
+echo   - netstat_ano*.txt
+echo   - firewall.wfw (Firewall-Backup)
+echo ==================================================
+echo.
+
+echo [HINWEIS] Fuer volle Wirksamkeit von AppLocker/WSL-Disable ist ein Neustart empfohlen.
+echo.
+
+pause
+endlocal
+exit /b 0
+
+:: -------------------------
+:: Minimal tee implementation (if "tee" missing)
+:: If "tee" exists, ignore this label.
+:: -------------------------
+:tee
+exit /b 0
+
+# Verbotene Befehle / Konzepte
+$ForbiddenPatterns = @(
+    "takeown",
+    "icacls",
+    "set-acl",
+    "sc.exe\s+sdset",
+    "bcdedit",
+    "diskpart",
+    "format",
+    "reg\s+delete",
+    "remove-item\s+-recurse",
+    "trustedinstaller",
+    "sebackupprivilege",
+    "serestoreprivilege"
+)
+
+$ScriptText = Get-Content -Path $MyInvocation.MyCommand.Path -Raw
+
+foreach ($pattern in $ForbiddenPatterns) {
+    if ($ScriptText -match $pattern) {
+        Write-Error "SICHERHEITSSTOPP: Verbotenes Muster erkannt: $pattern"
+        exit 999
+    }
+}
+
+
+function Assert-SafePath {
+    param([string]$Path)
+
+    $Blocked = @(
+        "C:\Windows\System32\config",
+        "C:\Windows\Boot",
+        "C:\Windows\WinSxS",
+        "HKLM:\SYSTEM",
+        "HKLM:\SECURITY"
+    )
+
+    foreach ($b in $Blocked) {
+        if ($Path -like "$b*") {
+            Write-Error "SICHERHEITSSTOPP: Zugriff auf geschützten Pfad blockiert: $Path"
+            exit 998
+        }
+    }
+}
+
+
+# ==========================================================
+# Windows Hardening Guardian
+# Dauerhafte Sicherheitsüberwachung (alle 60 Sekunden)
+# Autor: AVA
+# ==========================================================
+
+#region ADMIN CHECK (nur beim ersten Lauf relevant)
+if (-not ([Security.Principal.WindowsPrincipal]
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Error "Dieses Skript MUSS einmalig als Administrator gestartet werden."
+    exit 1
+}
+#endregion
+
+$BasePath = "C:\Windows\SecurityGuardian"
+$ScriptPath = "$BasePath\SecurityGuardian.ps1"
+$TaskName = "WindowsSecurityGuardian"
+
+#region INSTALLATION (einmalig)
+if (-not (Test-Path $BasePath)) {
+    New-Item -ItemType Directory -Path $BasePath -Force | Out-Null
+}
+
+# Kopiere dich selbst dauerhaft
+if ($MyInvocation.MyCommand.Path -ne $ScriptPath) {
+    Copy-Item $MyInvocation.MyCommand.Path $ScriptPath -Force
+}
+
+#endregion
+
+#region BASELINE FIREWALL (einmalig)
+$PortsToBlock = @(21,23,135,139,445,3389,5985,5986)
+foreach ($p in $PortsToBlock) {
+    if (-not (Get-NetFirewallRule -DisplayName "SG_Block_$p" -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -DisplayName "SG_Block_$p" `
+            -Direction Inbound -Protocol TCP -LocalPort $p -Action Block | Out-Null
+    }
+}
+#endregion
+
+#region BASELINE REGISTRY (nur sichere Policies)
+New-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Force | Out-Null
+Set-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+    -Name AllowTelemetry -Value 0 -Force
+
+New-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
+Set-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
+    -Name AllowCortana -Value 0 -Force
+#endregion
+
+#region SCHEDULED TASK (60 Sekunden, SYSTEM, stabil)
+if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
+
+    $Action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+
+    $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Seconds 60)
+
+    $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+    Register-ScheduledTask -TaskName $TaskName `
+        -Action $Action -Trigger $Trigger -Principal $Principal | Out-Null
+}
+#endregion
+
+# ==========================================================
+# === AB HIER: LOOP-SICHERE ÜBERWACHUNG (SYSTEM)
+# ==========================================================
+
+#region REMOTE-HARDENING (nur prüfen & korrigieren)
+$ts = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -ErrorAction SilentlyContinue
+if ($ts.fDenyTSConnections -ne 1) {
+    Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" `
+        -Name fDenyTSConnections -Value 1 -Force
+}
+#endregion
+
+#region DIENSTE (nur sichere Kandidaten)
+$ServiceBaseline = @{
+    "RemoteRegistry" = "Disabled"
+    "WinRM"          = "Disabled"
+    "DiagTrack"      = "Disabled"
+}
+
+foreach ($svc in $ServiceBaseline.Keys) {
+    $s = Get-Service $svc -ErrorAction SilentlyContinue
+    if ($s -and $s.StartType -ne $ServiceBaseline[$svc]) {
+        Stop-Service $svc -Force -ErrorAction SilentlyContinue
+        Set-Service $svc -StartupType $ServiceBaseline[$svc]
+    }
+}
+#endregion
+
+#region FIREWALL-VALIDIERUNG
+foreach ($p in $PortsToBlock) {
+    if (-not (Get-NetFirewallRule -DisplayName "SG_Block_$p" -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -DisplayName "SG_Block_$p" `
+            -Direction Inbound -Protocol TCP -LocalPort $p -Action Block | Out-Null
+    }
+}
+#endregion
+
+#region WINGET UPDATE (sanft, kein Zwang)
+Start-Process "winget" `
+    -ArgumentList "upgrade --all --silent --accept-source-agreements --accept-package-agreements" `
+    -WindowStyle Hidden -ErrorAction SilentlyContinue
+#endregion
+
+exit 0
+
+
+# ==========================================================
+# Windows Security Guardian – FINAL
+# Dauerhafte Sicherheitsüberwachung (alle 60 Sekunden)
+# ==========================================================
+
+# -------------------------
+# ADMIN CHECK (parser-sicher)
+# -------------------------
+if (-not ([bool](net session 2>$null))) {
+    Write-Error "Dieses Skript muss EINMAL als Administrator gestartet werden."
+    exit 1
+}
+
+# -------------------------
+# BASIS-PFADE
+# -------------------------
+$BasePath   = "C:\Windows\SecurityGuardian"
+$ScriptPath = "$BasePath\SecurityGuardian.ps1"
+$LogPath    = "$BasePath\Security.log"
+$BackupPath = "$BasePath\Rollback.json"
+$TaskName   = "WindowsSecurityGuardian"
+
+# -------------------------
+# ORDNER ERSTELLEN
+# -------------------------
+New-Item -ItemType Directory -Path $BasePath -Force | Out-Null
+
+# -------------------------
+# SELBSTKOPIE (Persistenz)
+# -------------------------
+if ($MyInvocation.MyCommand.Path -ne $ScriptPath) {
+    Copy-Item $MyInvocation.MyCommand.Path $ScriptPath -Force
+}
+
+# -------------------------
+# LOGGING
+# -------------------------
+function Log($msg) {
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | $msg"
+    Add-Content -Path $LogPath -Value $line
+}
+
+# -------------------------
+# ROLLBACK SNAPSHOT (einmal)
+# -------------------------
+if (-not (Test-Path $BackupPath)) {
+    $snapshot = @{
+        Firewall = Get-NetFirewallRule | Select DisplayName,Enabled
+        Services = Get-Service | Select Name,StartType,Status
+    }
+    $snapshot | ConvertTo-Json -Depth 3 | Set-Content $BackupPath
+    Log "Rollback-Snapshot erstellt"
+}
+
+# ==========================================================
+# ?? SICHERHEITS-BASISLINE
+# ==========================================================
+
+# -------------------------
+# FIREWALL – Remote Ports
+# -------------------------
+$PortsToBlock = @(21,23,135,139,445,3389,5985,5986)
+foreach ($p in $PortsToBlock) {
+    if (-not (Get-NetFirewallRule -DisplayName "SG_Block_$p" -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -DisplayName "SG_Block_$p" `
+            -Direction Inbound -Protocol TCP -LocalPort $p -Action Block | Out-Null
+        Log "Firewall: Port $p blockiert"
+    }
+}
+
+# -------------------------
+# REMOTE BLOCK (RDP)
+# -------------------------
+try {
+    Set-ItemProperty `
+        -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" `
+        -Name fDenyTSConnections -Value 1 -Force
+} catch {}
+
+# -------------------------
+# DIENSTE (NUR sichere)
+# -------------------------
+$ServiceBaseline = @{
+    "RemoteRegistry" = "Disabled"
+    "WinRM"          = "Disabled"
+    "DiagTrack"      = "Disabled"
+}
+
+foreach ($svc in $ServiceBaseline.Keys) {
+    $s = Get-Service $svc -ErrorAction SilentlyContinue
+    if ($s -and $s.StartType -ne $ServiceBaseline[$svc]) {
+        Stop-Service $svc -Force -ErrorAction SilentlyContinue
+        Set-Service  $svc -StartupType $ServiceBaseline[$svc]
+        Log "Service korrigiert: $svc"
+    }
+}
+
+# -------------------------
+# TELEMETRIE (Policy-basiert)
+# -------------------------
+New-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Force | Out-Null
+Set-ItemProperty `
+  "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+  -Name AllowTelemetry -Value 0 -Force
+
+# -------------------------
+# CORTANA AUS
+# -------------------------
+New-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
+Set-ItemProperty `
+  "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
+  -Name AllowCortana -Value 0 -Force
+
+# ==========================================================
+# ??? EXPLOIT GUARD / ASR RULES
+# ==========================================================
+$ASRRules = @{
+    "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550" = 1 # Office ? Child
+    "D4F940AB-401B-4EFC-AADC-AD5F3C50688A" = 1 # Credential Theft
+    "3B576869-A4EC-4529-8536-B80A7769E899" = 1 # Obfuscated Scripts
+}
+
+foreach ($id in $ASRRules.Keys) {
+    Add-MpPreference -AttackSurfaceReductionRules_Ids $id `
+                     -AttackSurfaceReductionRules_Actions $ASRRules[$id] `
+                     -ErrorAction SilentlyContinue
+}
+
+# ==========================================================
+# ?? DNS & BROWSER HÄRTUNG
+# ==========================================================
+
+# DNS Cache Hardening
+Set-ItemProperty `
+  "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" `
+  -Name MaxNegativeCacheTtl -Value 0 -Force
+
+# SmartScreen
+Set-ItemProperty `
+  "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" `
+  -Name SmartScreenEnabled -Value "RequireAdmin" -Force
+
+# Edge Tracking aus
+New-Item "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Force | Out-Null
+Set-ItemProperty `
+  "HKLM:\SOFTWARE\Policies\Microsoft\Edge" `
+  -Name TrackingPrevention -Value 3 -Force
+
+# ==========================================================
+# ?? EVENT-LOG ÜBERWACHUNG (Angriffsindikatoren)
+# ==========================================================
+$Events = Get-WinEvent -FilterHashtable @{
+    LogName='Security'
+    Id=4625,4688
+    StartTime=(Get-Date).AddMinutes(-5)
+} -ErrorAction SilentlyContinue
+
+if ($Events) {
+    Log "?? Sicherheitsereignisse erkannt: $($Events.Count)"
+}
+
+# ==========================================================
+# ?? WINGET (sanft, kein Zwang)
+# ==========================================================
+Start-Process "winget" `
+  -ArgumentList "upgrade --all --silent --accept-source-agreements --accept-package-agreements" `
+  -WindowStyle Hidden -ErrorAction SilentlyContinue
+
+# ==========================================================
+# ?? SCHEDULED TASK (60 SEKUNDEN)
+# ==========================================================
+if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
+
+    $Action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+
+    $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Seconds 60)
+
+    $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+    Register-ScheduledTask `
+        -TaskName $TaskName `
+        -Action $Action `
+        -Trigger $Trigger `
+        -Principal $Principal | Out-Null
+
+    Log "Scheduled Task installiert (60 Sekunden)"
+}
+
+exit 0
+
+
+
+
+#requires -Version 5.1
+<#
+ELITE-Scan.ps1 (Defensive / Read-only)
+- Visual Dashboard in Console
+- Risk score + short findings
+- HTML report export + optional auto-open
+#>
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "SilentlyContinue"
+
+# ----------------------- helpers -----------------------
+function Test-Admin {
+  $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $p  = New-Object Security.Principal.WindowsPrincipal($id)
+  return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Write-Header($title) {
+  $line = ("=" * 78)
+  Write-Host ""
+  Write-Host $line -ForegroundColor DarkCyan
+  Write-Host ("  " + $title) -ForegroundColor Cyan
+  Write-Host $line -ForegroundColor DarkCyan
+}
+
+function New-Finding {
+  param(
+    [ValidateSet("INFO","LOW","MED","HIGH","CRIT")] [string]$Severity,
+    [string]$Title,
+    [string]$Details
+  )
+  [pscustomobject]@{
+    Time     = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    Severity = $Severity
+    Title    = $Title
+    Details  = $Details
+  }
+}
+
+function Add-Finding([ref]$Findings, $Finding) {
+  $Findings.Value += $Finding
+}
+
+function Severity-Score([string]$sev) {
+  switch ($sev) {
+    "INFO" { 0 }
+    "LOW"  { 5 }
+    "MED"  { 15 }
+    "HIGH" { 30 }
+    "CRIT" { 50 }
+    default { 0 }
+  }
+}
+
+function Short($s, $max=140) {
+  if ([string]::IsNullOrWhiteSpace($s)) { return "" }
+  if ($s.Length -le $max) { return $s }
+  return $s.Substring(0, $max) + "â€¦"
+}
+
+function Safe-Run($scriptblock) {
+  try { & $scriptblock } catch { $null }
+}
+
+# ----------------------- config -----------------------
+$StartTime = Get-Date
+$IsAdmin = Test-Admin
+$Computer = $env:COMPUTERNAME
+$User = "$env:USERDOMAIN\$env:USERNAME"
+
+$SuspiciousProcNames = @(
+  "powershell.exe","pwsh.exe","cmd.exe","wscript.exe","cscript.exe","mshta.exe",
+  "rundll32.exe","regsvr32.exe","bitsadmin.exe","certutil.exe","wmic.exe"
+)
+
+# report paths
+$OutDir = Join-Path $env:USERPROFILE "Desktop\ELITE_SCAN_REPORT"
+New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+$Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$JsonPath = Join-Path $OutDir "elite_scan_$Stamp.json"
+$HtmlPath = Join-Path $OutDir "elite_scan_$Stamp.html"
+$TxtPath  = Join-Path $OutDir "elite_scan_$Stamp.txt"
+
+# ----------------------- collect -----------------------
+$Findings = @()
+
+Write-Header "ELITE SCAN â€” $Computer â€” $User â€” $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+Write-Host ("Admin: " + ($IsAdmin ? "YES" : "NO (einige Checks eingeschrÃ¤nkt)")) -ForegroundColor Yellow
+Write-Host ("Report: $OutDir") -ForegroundColor DarkGray
+
+# 1) Defender status + last threats
+$Defender = Safe-Run { Get-MpComputerStatus }
+if ($Defender) {
+  if (-not $Defender.RealTimeProtectionEnabled) {
+    Add-Finding ([ref]$Findings) (New-Finding HIGH "Defender Echtzeitschutz AUS" "RealTimeProtectionEnabled = False")
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "Defender Echtzeitschutz AN" "OK")
+  }
+
+  if ($Defender.IsTamperProtected -eq $false) {
+    Add-Finding ([ref]$Findings) (New-Finding MED "Tamper Protection AUS" "Empfohlen: Tamper Protection aktivieren")
+  }
+
+  Add-Finding ([ref]$Findings) (New-Finding INFO "Defender Engine" ("AMProductVersion: {0}" -f $Defender.AMProductVersion))
+} else {
+  Add-Finding ([ref]$Findings) (New-Finding MED "Defender Status nicht auslesbar" "Get-MpComputerStatus fehlgeschlagen (Policy/Edition?)")
+}
+
+$Threats = Safe-Run { Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending | Select-Object -First 15 }
+if ($Threats) {
+  $recent = $Threats | Select-Object -First 1
+  Add-Finding ([ref]$Findings) (New-Finding INFO "Letzte Defender-Erkennung" ("{0} â€” {1} â€” StatusID {2}" -f $recent.InitialDetectionTime, $recent.ThreatID, $recent.ThreatStatusID))
+}
+
+# 2) Interactive sessions (RDP/console)
+$SessionsText = Safe-Run { (quser 2>$null) }
+if ($SessionsText) {
+  # Flag suspicious: more than 1 active session
+  $activeCount = ($SessionsText | Select-String "Active").Count
+  if ($activeCount -gt 1) {
+    Add-Finding ([ref]$Findings) (New-Finding MED "Mehrere aktive Benutzer-Sessions" ("Active Sessions: $activeCount`n" + (Short ($SessionsText | Out-String) 300)))
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "Benutzer-Sessions" ("OK`n" + (Short ($SessionsText | Out-String) 260)))
+  }
+} else {
+  Add-Finding ([ref]$Findings) (New-Finding INFO "Benutzer-Sessions" "quser nicht verfÃ¼gbar (kein Terminaldienst / Rechte)")
+}
+
+# 3) Network connections (ESTABLISHED) + owning process
+$Conns = Safe-Run { Get-NetTCPConnection -State Established | Select-Object -First 200 }
+if ($Conns) {
+  $ConnRows = foreach ($c in $Conns) {
+    $p = Safe-Run { Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue }
+    [pscustomobject]@{
+      Local  = "{0}:{1}" -f $c.LocalAddress, $c.LocalPort
+      Remote = "{0}:{1}" -f $c.RemoteAddress, $c.RemotePort
+      PID    = $c.OwningProcess
+      Proc   = if ($p) { $p.ProcessName + ".exe" } else { "?" }
+    }
+  }
+
+  $susp = $ConnRows | Where-Object { $SuspiciousProcNames -contains $_.Proc } | Select-Object -First 20
+  if ($susp) {
+    Add-Finding ([ref]$Findings) (New-Finding MED "VerdÃ¤chtige Prozesse mit aktiven Verbindungen" ((Short ($susp | Format-Table -AutoSize | Out-String) 400)))
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "Aktive Netzwerkverbindungen" ("ESTABLISHED: {0} (keine typischen Living-off-the-Land Tools mit Verbindungen gefunden)" -f $ConnRows.Count))
+  }
+} else {
+  Add-Finding ([ref]$Findings) (New-Finding INFO "Netzwerkverbindungen" "Keine ESTABLISHED Verbindungen (oder Get-NetTCPConnection nicht verfÃ¼gbar)")
+}
+
+# 4) Scheduled tasks (non-Microsoft) + suspicious actions
+$Tasks = Safe-Run { Get-ScheduledTask }
+if ($Tasks) {
+  $NonMs = $Tasks | Where-Object { $_.TaskPath -notlike "\Microsoft\*" }
+  $SuspTasks = foreach ($t in $NonMs) {
+    $info = Safe-Run { Get-ScheduledTaskInfo -TaskName $t.TaskName -TaskPath $t.TaskPath }
+    $acts = $t.Actions | ForEach-Object { $_.Execute + " " + $_.Arguments }
+    $actsStr = ($acts -join " | ")
+    if ($actsStr -match "powershell|cmd|wscript|cscript|mshta|rundll32|regsvr32|bitsadmin|certutil") {
+      [pscustomobject]@{
+        Task   = ($t.TaskPath + $t.TaskName)
+        RunAs  = $t.Principal.UserId
+        Next   = $info.NextRunTime
+        Action = Short $actsStr 260
+      }
+    }
+  }
+
+  if ($SuspTasks) {
+    Add-Finding ([ref]$Findings) (New-Finding HIGH "Nicht-Microsoft Scheduled Tasks mit riskanten Actions" ((Short ($SuspTasks | Format-Table -AutoSize | Out-String) 500)))
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "Scheduled Tasks" ("Non-Microsoft: {0} â€” keine typischen LOLBins in Actions" -f ($NonMs.Count)))
+  }
+} else {
+  Add-Finding ([ref]$Findings) (New-Finding INFO "Scheduled Tasks" "Get-ScheduledTask nicht verfÃ¼gbar")
+}
+
+# 5) Startup entries
+$Startup = Safe-Run { Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location, User }
+if ($Startup) {
+  $SusStartup = $Startup | Where-Object { $_.Command -match "powershell|cmd|wscript|cscript|mshta|rundll32|regsvr32" } | Select-Object -First 25
+  if ($SusStartup) {
+    Add-Finding ([ref]$Findings) (New-Finding MED "Autostart mit riskanten Befehlen" ((Short ($SusStartup | Format-Table -AutoSize | Out-String) 450)))
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "Autostart" ("EintrÃ¤ge: {0} â€” keine typischen LOLBins" -f $Startup.Count))
+  }
+}
+
+# 6) Services: Auto-start + suspicious paths
+$Services = Safe-Run { Get-CimInstance Win32_Service | Where-Object { $_.StartMode -eq "Auto" } }
+if ($Services) {
+  $SusSvc = $Services | Where-Object {
+    ($_.PathName -match "AppData|Temp|\\Users\\") -or
+    ($_.PathName -match "powershell|cmd|wscript|cscript|mshta|rundll32|regsvr32")
+  } | Select-Object Name, State, StartName, PathName -First 20
+
+  if ($SusSvc) {
+    Add-Finding ([ref]$Findings) (New-Finding HIGH "Auto-Start Services mit verdÃ¤chtigen Pfaden/LOLbins" ((Short ($SusSvc | Format-Table -AutoSize | Out-String) 550)))
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "Services (Auto-Start)" ("Auto Services: {0} â€” keine offensichtlichen Red Flags" -f $Services.Count))
+  }
+}
+
+# 7) Remote features quick glance: RDP / WinRM
+$Rdp = Safe-Run { (Get-ItemProperty "HKLM:\System\CurrentControlSet\Control\Terminal Server").fDenyTSConnections }
+if ($null -ne $Rdp) {
+  if ($Rdp -eq 0) { Add-Finding ([ref]$Findings) (New-Finding MED "RDP ist aktiviert" "Wenn nicht benÃ¶tigt: deaktivieren (fDenyTSConnections=1)") }
+  else { Add-Finding ([ref]$Findings) (New-Finding INFO "RDP" "Deaktiviert") }
+}
+
+$WinRM = Safe-Run { Get-Service WinRM }
+if ($WinRM) {
+  if ($WinRM.Status -eq "Running") {
+    Add-Finding ([ref]$Findings) (New-Finding MED "WinRM lÃ¤uft" "Wenn nicht genutzt: stoppen/disable. Wenn genutzt: Firewall + Auth hÃ¤rten.")
+  } else {
+    Add-Finding ([ref]$Findings) (New-Finding INFO "WinRM" ("Status: {0}" -f $WinRM.Status))
+  }
+}
+
+# 8) Proxy (common persistence / traffic redirect)
+$Proxy = Safe-Run { netsh winhttp show proxy | Out-String }
+if ($Proxy -and $Proxy -notmatch "Direct access") {
+  Add-Finding ([ref]$Findings) (New-Finding MED "WinHTTP Proxy gesetzt" (Short $Proxy 350))
+} else {
+  Add-Finding ([ref]$Findings) (New-Finding INFO "WinHTTP Proxy" "Direct access (kein Proxy)") 
+}
+
+# 9) BitLocker / Geraeteverschluesselung Status
+$BitlockerFindingDone = $false
+$Blv = Safe-Run { Get-BitLockerVolume -MountPoint "C:" }
+if ($Blv) {
+  switch ($Blv.ProtectionStatus) {
+    1 {
+      Add-Finding ([ref]$Findings) (New-Finding INFO "BitLocker aktiv (Systemlaufwerk)" ("Status: {0}, Encryption: {1}%, LockStatus: {2}" -f $Blv.VolumeStatus, $Blv.EncryptionPercentage, $Blv.LockStatus))
+      $BitlockerFindingDone = $true
+    }
+    0 {
+      Add-Finding ([ref]$Findings) (New-Finding MED "BitLocker AUS (Systemlaufwerk)" ("Status: {0}, Encryption: {1}% -- Empfehlung: aktivieren" -f $Blv.VolumeStatus, $Blv.EncryptionPercentage))
+      $BitlockerFindingDone = $true
+    }
+    default { }
+  }
+}
+
+if (-not $BitlockerFindingDone) {
+  $Mbde = Safe-Run { manage-bde -status C: 2>$null }
+  if ($Mbde) {
+    if ($Mbde -match "Protection Status:\s+Protection On") {
+      Add-Finding ([ref]$Findings) (New-Finding INFO "BitLocker aktiv (manage-bde)" "Protection On laut manage-bde -status C:")
+      $BitlockerFindingDone = $true
+    }
+    elseif ($Mbde -match "Protection Status:\s+Protection Off") {
+      Add-Finding ([ref]$Findings) (New-Finding MED "BitLocker AUS (manage-bde)" "Protection Off laut manage-bde -status C: -- Empfehlung: aktivieren")
+      $BitlockerFindingDone = $true
+    }
+  }
+}
+
+if (-not $BitlockerFindingDone) {
+  Add-Finding ([ref]$Findings) (New-Finding INFO "BitLocker Status nicht ermittelbar" "Cmdlets/Feature evtl. nicht vorhanden (z.B. Windows Home). Wenn verfuegbar: BitLocker oder Geraeteverschluesselung aktivieren.")
+}
+# ----------------------- scoring + dashboard -----------------------
+$Score = 0
+foreach ($f in $Findings) { $Score += Severity-Score $f.Severity }
+if ($Score -gt 100) { $Score = 100 }
+
+$RiskLabel = if ($Score -ge 80) { "KRITISCH" }
+elseif ($Score -ge 50) { "HOCH" }
+elseif ($Score -ge 25) { "MITTEL" }
+elseif ($Score -ge 10) { "NIEDRIG" }
+else { "OK" }
+
+$Top = $Findings | Sort-Object @{Expression={ Severity-Score $_.Severity }; Descending=$true }, Time | Select-Object -First 8
+
+Write-Header "DASHBOARD"
+Write-Host ("RISK SCORE: {0}/100  =>  {1}" -f $Score, $RiskLabel) -ForegroundColor Cyan
+Write-Host ("Findings: {0}  |  Runtime: {1}s" -f $Findings.Count, ([int]((Get-Date)-$StartTime).TotalSeconds)) -ForegroundColor DarkGray
+
+Write-Host ""
+Write-Host "TOP FINDINGS (kurz):" -ForegroundColor Yellow
+$Top | Select-Object Severity, Title, @{n="Details";e={ Short $_.Details 120 }} | Format-Table -AutoSize | Out-String | Tee-Object -FilePath $TxtPath -Append | Write-Host
+
+# ----------------------- export JSON -----------------------
+$Export = [pscustomobject]@{
+  Meta = [pscustomobject]@{
+    Computer   = $Computer
+    User       = $User
+    Time       = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    IsAdmin    = $IsAdmin
+    RiskScore  = $Score
+    RiskLabel  = $RiskLabel
+    ReportDir  = $OutDir
+  }
+  Findings = $Findings
+}
+$Export | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 -Path $JsonPath
+
+# ----------------------- export HTML -----------------------
+$style = @"
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;margin:20px;}
+h1{margin:0 0 10px 0;}
+.badge{display:inline-block;padding:4px 10px;border-radius:16px;font-weight:600;}
+.ok{background:#e8f5e9;color:#1b5e20;}
+.low{background:#e3f2fd;color:#0d47a1;}
+.med{background:#fff8e1;color:#e65100;}
+.high{background:#ffebee;color:#b71c1c;}
+table{border-collapse:collapse;width:100%;margin-top:14px;}
+th,td{border:1px solid #ddd;padding:8px;vertical-align:top;}
+th{background:#f5f5f5;text-align:left;}
+.small{color:#666;font-size:12px;}
+</style>
+"@
+
+$badgeClass = switch ($RiskLabel) {
+  "OK"      { "ok" }
+  "NIEDRIG" { "low" }
+  "MITTEL"  { "med" }
+  default   { "high" }
+}
+
+$rows = foreach ($f in ($Findings | Sort-Object @{Expression={ Severity-Score $_.Severity }; Descending=$true }, Time)) {
+  "<tr><td>$($f.Time)</td><td>$($f.Severity)</td><td>$([System.Web.HttpUtility]::HtmlEncode($f.Title))</td><td>$([System.Web.HttpUtility]::HtmlEncode($f.Details))</td></tr>"
+}
+
+$html = @"
+<html><head><meta charset="utf-8">$style</head><body>
+<h1>ELITE Scan Report â€” $Computer</h1>
+<div class="small">User: $User â€¢ Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') â€¢ Admin: $IsAdmin</div>
+<p><span class="badge $badgeClass">RISK SCORE: $Score/100 â€” $RiskLabel</span></p>
+
+<h2>Top Findings</h2>
+<table>
+<tr><th>Time</th><th>Severity</th><th>Title</th><th>Details</th></tr>
+$($rows -join "`j")
+</table>
+
+<p class="small">Files: JSON=$JsonPath â€¢ TXT=$TxtPath</p>
+</body></html>
+"@
+Set-Content -Encoding UTF8 -Path $HtmlPath -Value $html
+
+ "difficulty": 4,  "blocks": [    {      "index": 0,      "timestamp": 1771182719.6062968,      "threat_data": {        "type": "GENESIS",        "message": "AVA Security Blockchain v96.0 Genesis Block",        "creator": "Danny Nico Hildebrand",        "date": "2026-02-15"      },      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",      "nonce": 143900,      "hash": "00005828c5073f24f02ea7a42ba46112fba67a404a3480a877e886579c961679"    },    {      "index": 1,      "timestamp": 1771182721.8423817,      "threat_data": {        "type": "TOKEN_ISSUED",        "token_id": "LZ-cCan03BlttdLKHCRIKjQu6B_Byq8kl-97vPWYxXY",        "owner": "cb1a1ac5e2e8",        "permissions": [          "read_sensors",          "write_logs",          "report_threats"        ],        "expires_at": 1771186321.84237      },      "previous_hash": "00005828c5073f24f02ea7a42ba46112fba67a404a3480a877e886579c961679",      "nonce": 88916,      "hash": "00006df450d84215db0d8fd6304c89166a01264cc6f926ef0f36a436006b8409"    },    {      "index": 2,      "timestamp": 1771182722.691521,      "threat_data": {        "type": "DEVICE_REGISTERED",        "device_id": "cb1a1ac5e2e8",        "device_type": "security_camera",        "ip_address": "192.168.1.10",        "firmware_hash": "27afe5962a53aa41336b3698fcf6aaf5b09e56e33c4ee730472817af35c3251c",        "token_id": "LZ-cCan03BlttdLKHCRIKjQu6B_Byq8kl-97vPWYxXY",        "timestamp": 1771182722.691516      },      "previous_hash": "00006df450d84215db0d8fd6304c89166a01264cc6f926ef0f36a436006b8409",      "nonce": 155444,      "hash": "0000c5be0c2a396fc6b0aebeaa92012ede91744418afc94ead550d5e8ab44bbb"    },    {      "index": 3,      "timestamp": 1771182724.6610067,      "threat_data": {        "type": "TOKEN_ISSUED",        "token_id": "QEKouRP4vPHE-P3z6_6Qn8MVR4A8ZQPxQT5c2-I6Wlg",        "owner": "d7a3e5d4b3e9",        "permissions": [          "read_sensors",          "write_logs",          "report_threats"        ],        "expires_at": 1771186324.6609962      },      "previous_hash": "0000c5be0c2a396fc6b0aebeaa92012ede91744418afc94ead550d5e8ab44bbb",      "nonce": 77803,      "hash": "00007028576dd0455a4991ab82e320c06fbf35a1fb4ed95e79c74ac35cc5b486"    },    {      "index": 4,      "timestamp": 1771182725.304715,      "threat_data": {        "type": "DEVICE_REGISTERED",        "device_id": "d7a3e5d4b3e9",        "device_type": "motion_sensor",        "ip_address": "192.168.1.20",        "firmware_hash": "7dcf1d2ee3dbc68dda521f1ab34a95e6629efe71ba0aec7880d15743bf8c607a",        "token_id": "QEKouRP4vPHE-P3z6_6Qn8MVR4A8ZQPxQT5c2-I6Wlg",        "timestamp": 1771182725.304713      },      "previous_hash": "00007028576dd0455a4991ab82e320c06fbf35a1fb4ed95e79c74ac35cc5b486",      "nonce": 35360,      "hash": "00005d7b680ff22e82ff5d955193c9befb805be6a7f1dc9b070eb5c2e9ac29f6"    },    {      "index": 5,      "timestamp": 1771182726.1310835,      "threat_data": {        "type": "TOKEN_ISSUED",        "token_id": "3RBaqWNxmdIqGJhGPEw6E6zaSfckgz9WsUjYE0ZVuLE",        "owner": "ab41290660f3",        "permissions": [          "read_sensors",          "write_logs",          "report_threats"        ],        "expires_at": 1771186326.1310763      },      "previous_hash": "00005d7b680ff22e82ff5d955193c9befb805be6a7f1dc9b070eb5c2e9ac29f6",      "nonce": 23463,      "hash": "0000c9e612acda667b01b17d8311148a7405e39e8782112a9f13b45229a8d388"    },    {      "index": 6,      "timestamp": 1771182726.3625853,      "threat_data": {        "type": "DEVICE_REGISTERED",        "device_id": "ab41290660f3",        "device_type": "iot_gateway",        "ip_address": "192.168.1.1",        "firmware_hash": "b831e06dfba9d63e003615f0c7913e343988daf0a98af10c793f9246995d5fac",        "token_id": "3RBaqWNxmdIqGJhGPEw6E6zaSfckgz9WsUjYE0ZVuLE",        "timestamp": 1771182726.3625836      },      "previous_hash": "0000c9e612acda667b01b17d8311148a7405e39e8782112a9f13b45229a8d388",      "nonce": 84565,      "hash": "0000a587041b0a65819964ef7e38ac028f9f651d86786b267280f7ff243a3759"    },    {      "index": 7,      "timestamp": 1771182727.1434278,      "threat_data": {        "type": "THREAT_CONFIRMED",        "threat_id": "42eec3735c78434e",        "threat_data": {          "type": "NETWORK_INTRUSION",          "severity": "HIGH",          "source_ip": "203.0.113.45",          "target": "cb1a1ac5e2e8",          "description": "Unauthorized access attempt"        },        "votes": 7,        "consensus": 0.7,        "reporters": [          "node_0",          "node_1",          "node_2",          "node_3",          "node_4",          "node_5",          "node_6"        ]      },      "previous_hash": "0000a587041b0a65819964ef7e38ac028f9f651d86786b267280f7ff243a3759",      "nonce": 10907,      "hash": "00005f0f672e67403cb2cbee45c320717552374d57490647eefcbb01738251a6"    },    {      "index": 8,      "timestamp": 1771182727.2430582,      "threat_data": {        "type": "NETWORK_INTRUSION",        "severity": "HIGH",        "source_ip": "203.0.113.45",        "target": "cb1a1ac5e2e8",        "description": "Unauthorized access attempt"      },      "previous_hash": "00005f0f672e67403cb2cbee45c320717552374d57490647eefcbb01738251a6",      "nonce": 41396,      "hash": "0000debd3cf1e2a127d174a25426eca5e106798b6e0c732d3736f65340fa79a8"    },    {      "index": 9,      "timestamp": 1771182728.0798,      "threat_data": {        "type": "THREAT_CONFIRMED",        "threat_id": "4cd01e119df3ab67",        "threat_data": {          "type": "DDOS_ATTACK",          "severity": "CRITICAL",          "source_ips": [            "198.51.100.10",            "198.51.100.11",            "198.51.100.12"          ],          "target": "ab41290660f3",          "requests_per_second": 10000        },        "votes": 7,        "consensus": 0.7,        "reporters": [          "node_0",          "node_1",          "node_2",          "node_3",          "node_4",          "node_5",          "node_6"        ]      },      "previous_hash": "0000debd3cf1e2a127d174a25426eca5e106798b6e0c732d3736f65340fa79a8",      "nonce": 46206,      "hash": "0000d3c7981da977ff46eebc0d7e73ac82b38f45919bf0befc80c2c965c26592"    },    {      "index": 10,      "timestamp": 1771182728.5151243,      "threat_data": {        "type": "DDOS_ATTACK",        "severity": "CRITICAL",        "source_ips": [          "198.51.100.10",          "198.51.100.11",          "198.51.100.12"        ],        "target": "ab41290660f3",        "requests_per_second": 10000      },      "previous_hash": "0000d3c7981da977ff46eebc0d7e73ac82b38f45919bf0befc80c2c965c26592",      "nonce": 38470,      "hash": "0000ace3a72fa92aa031842c6f73b4c38fe26f6f5510d5bca5335a06a6b236f7"    },    {      "index": 11,      "timestamp": 1771182729.2983537,      "threat_data": {        "type": "THREAT_CONFIRMED",        "threat_id": "98e7686c15e189de",        "threat_data": {          "type": "MALWARE_DETECTED",          "severity": "CRITICAL",          "device": "d7a3e5d4b3e9",          "malware_signature": "Trojan.IoT.Mirai.Variant"        },        "votes": 7,        "consensus": 0.7,        "reporters": [          "node_0",          "node_1",          "node_2",          "node_3",          "node_4",          "node_5",          "node_6"        ]      },      "previous_hash": "0000ace3a72fa92aa031842c6f73b4c38fe26f6f5510d5bca5335a06a6b236f7",      "nonce": 71196,      "hash": "000099f41e84c4e6feae1c44237b0b6bc31906ba5324dd91eb3b02419b259ec7"    },    {      "index": 12,      "timestamp": 1771182730.2114394,      "threat_data": {        "type": "MALWARE_DETECTED",        "severity": "CRITICAL",        "device": "d7a3e5d4b3e9",        "malware_signature": "Trojan.IoT.Mirai.Variant"      },      "previous_hash": "000099f41e84c4e6feae1c44237b0b6bc31906ba5324dd91eb3b02419b259ec7",      "nonce": 12559,      "hash": "0000b2b362e332c431ae1e397bd1629f391ced2df08bc45f2815ae974a1bafea"    },    {      "index": 13,      "timestamp": 1771182731.3742285,      "threat_data": {        "type": "THREAT_CONFIRMED",        "threat_id": "ce330b64ad448c78",        "threat_data": {          "type": "BEHAVIOR_ANOMALY",          "device_id": "d7a3e5d4b3e9",          "anomalies": [            "Abnormal CPU usage: 98.0%",            "Abnormal memory usage: 95.0%",            "Abnormal network traffic: 9999.0 KB/s",            "Abnormal request rate: 1000.0 req/min"          ],          "metrics": {            "cpu_usage": 98.0,            "memory_usage": 95.0,            "network_traffic": 9999.0,            "requests_per_minute": 1000.0          },          "severity": "HIGH",          "timestamp": 1771182731.374065        },        "votes": 7,        "consensus": 0.7,        "reporters": [          "node_0",          "node_1",          "node_2",          "node_3",          "node_4",          "node_5",          "node_6"        ]      },      "previous_hash": "0000b2b362e332c431ae1e397bd1629f391ced2df08bc45f2815ae974a1bafea",      "nonce": 13859,      "hash": "00009ef5fd806911011c47934bd185b4aea6ccfb3a510d92b5158fd1135adaaa"    },    {      "index": 14,      "timestamp": 1771182731.5371208,      "threat_data": {        "type": "BEHAVIOR_ANOMALY",        "device_id": "d7a3e5d4b3e9",        "anomalies": [          "Abnormal CPU usage: 98.0%",          "Abnormal memory usage: 95.0%",          "Abnormal network traffic: 9999.0 KB/s",          "Abnormal request rate: 1000.0 req/min"        ],        "metrics": {          "cpu_usage": 98.0,          "memory_usage": 95.0,          "network_traffic": 9999.0,          "requests_per_minute": 1000.0        },        "severity": "HIGH",        "timestamp": 1771182731.374065      },      "previous_hash": "00009ef5fd806911011c47934bd185b4aea6ccfb3a510d92b5158fd1135adaaa",      "nonce": 56612,      "hash": "0000bd6a2c2871c4dbdfa04f1fee14d4ceea8ebbd15361611b92271f78086fd2"    },    {      "index": 15,      "timestamp": 1771182732.6120477,      "threat_data": {        "type": "THREAT_CONFIRMED",        "threat_id": "1ab2d57476e2051d",        "threat_data": {          "type": "FIRMWARE_TAMPERING",          "device_id": "d7a3e5d4b3e9",          "error": "Firmware modified - possible tampering",          "severity": "CRITICAL",          "timestamp": 1771182732.611901        },        "votes": 7,        "consensus": 0.7,        "reporters": [          "node_0",          "node_1",          "node_2",          "node_3",          "node_4",          "node_5",          "node_6"        ]      },      "previous_hash": "0000bd6a2c2871c4dbdfa04f1fee14d4ceea8ebbd15361611b92271f78086fd2",      "nonce": 30020,      "hash": "00002205d3b7b34755b1544fb6afe7d1d6dbf5afce9bda3d46901dc7bf8d3c47"    },    {      "index": 16,      "timestamp": 1771182733.164276,      "threat_data": {        "type": "FIRMWARE_TAMPERING",        "device_id": "d7a3e5d4b3e9",        "error": "Firmware modified - possible tampering",        "severity": "CRITICAL",        "timestamp": 1771182732.611901      },      "previous_hash": "00002205d3b7b34755b1544fb6afe7d1d6dbf5afce9bda3d46901dc7bf8d3c47",      "nonce": 35489,      "hash": "00003956b30410e3481535005c0af144b7d58dbf47f2fe90a536eda555cafb44"    }  ],  "length": 17,  "verified": true}
+Collapse file?launch_ultimate_v96.py?Copy file name to clipboardExpand all lines: launch_ultimate_v96.py+490Lines changed: 490 additions & 0 deletions Load DiffLarge diffs are not rendered by default.
+Collapse file?security_state_v96.json?Copy file name to clipboard+43Lines changed: 43 additions & 0 deletionsOriginal file line numberDiff line numberDiff line change@@ -0,0 +1,43 @@{  "metadata": {    "version": "96.0",    "creator": "Danny Nico Hildebrand",    "timestamp": 1771182733.4704497,    "location": "Danny Devito 01610 Nachhall"  },  "statistics": {    "platform": {      "version": "96.0",      "uptime_seconds": 12.628440856933594,      "total_threats_blocked": 5,      "total_devices_protected": 3,      "total_tokens_issued": 3    },    "blockchain": {      "total_blocks": 17,      "chain_valid": true,      "difficulty": 4    },    "tangle": {      "total_transactions": 9,      "confirmed": 9,      "pending": 0,      "tips": 1,      "confirmation_rate": "100.0%",      "average_weight": 108.0    },    "iot": {      "total_devices": 3,      "active_devices": 3,      "total_threats_detected": 0,      "average_security_score": 100.0,      "devices_by_type": {}    },    "threat_intelligence": {      "total_reports": 35,      "confirmed_threats": 5    }  },  "blockchain_export": "blockchain_export_1771182733.json",  "tangle_export": "tangle_export_1771182733.json"}
+Collapse file?tangle_export_1771182733.json?Copy file name to clipboard+118Lines changed: 118 additions & 0 deletionsOriginal file line numberDiff line numberDiff line change@@ -0,0 +1,118 @@{  "nodes": [    {      "id": "genesis_ec136a120ff3dd97",      "timestamp": 1771182720.841949,      "threat_type": "GENESIS",      "weight": 100,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "23cc0a03c60333fb",      "timestamp": 1771182721.8422031,      "threat_type": "IOT_DEVICE_REGISTERED",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "17f6093bc744a867",      "timestamp": 1771182724.6608255,      "threat_type": "IOT_DEVICE_REGISTERED",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "6252a267dcbb4d0f",      "timestamp": 1771182726.1309462,      "threat_type": "IOT_DEVICE_REGISTERED",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "b8c363d094ddd054",      "timestamp": 1771182727.2430215,      "threat_type": "NETWORK_INTRUSION",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "08b14c10e7913f86",      "timestamp": 1771182728.5150828,      "threat_type": "DDOS_ATTACK",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "8396e32bee052731",      "timestamp": 1771182730.2113779,      "threat_type": "MALWARE_DETECTED",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "57a01b7c53203c86",      "timestamp": 1771182731.5370739,      "threat_type": "BEHAVIOR_ANOMALY",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    },    {      "id": "78036a677232440f",      "timestamp": 1771182733.1642303,      "threat_type": "FIRMWARE_TAMPERING",      "weight": 1,      "cumulative_weight": 108,      "confirmed": true    }  ],  "edges": [    {      "from": "23cc0a03c60333fb",      "to": "genesis_ec136a120ff3dd97"    },    {      "from": "17f6093bc744a867",      "to": "23cc0a03c60333fb"    },    {      "from": "6252a267dcbb4d0f",      "to": "17f6093bc744a867"    },    {      "from": "b8c363d094ddd054",      "to": "6252a267dcbb4d0f"    },    {      "from": "08b14c10e7913f86",      "to": "b8c363d094ddd054"    },    {      "from": "8396e32bee052731",      "to": "08b14c10e7913f86"    },    {      "from": "57a01b7c53203c86",      "to": "8396e32bee052731"    },    {      "from": "78036a677232440f",      "to": "57a01b7c53203c86"    }  ],  "statistics": {    "total_transactions": 9,    "confirmed": 9,    "pending": 0,    "tips": 1,    "confirmation_rate": "100.0%",    "average_weight": 108.0  }}
+
+
+Write-Header "EXPORT"
+Write-Host "JSON: $JsonPath" -ForegroundColor Green
+Write-Host "TXT : $TxtPath"  -ForegroundColor Green
+Write-Host "HTML: $HtmlPath" -ForegroundColor Green
+
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+title AVA 01610 NACHHALL - ULTIMATE ADMIN LOCKDOWN
+color 0A
+
+:: =========================
+::  CONFIG / PATHS
+:: =========================
+set "BASE=C:\AVA01610_NACHHALL"
+set "TS=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%"
+set "TS=%TS: =0%"
+set "LOGDIR=%BASE%\logs_%TS%"
+set "LOG=%LOGDIR%\lockdown.log"
+
+if not exist "%LOGDIR%" mkdir "%LOGDIR%" >nul 2>&1
+
+echo ================================================== | tee "%LOG%"
+echo  AVA 01610 NACHHALL - ULTIMATE ADMIN LOCKDOWN      | tee -a "%LOG%"
+echo  Timestamp: %TS%                                  | tee -a "%LOG%"
+echo ================================================== | tee -a "%LOG%"
+echo.
+
+:: tee helper (fallback if tee missing)
+:: If "tee" doesn't exist, lines still go to console; logs written via extra echoes below.
+where tee >nul 2>&1
+if errorlevel 1 (
+  echo [INFO] "tee" nicht gefunden. Logging erfolgt in Dateien + Konsole.>>"%LOG%"
+)
+
+:: =========================
+::  SAFETY: CREATE RESTORE POINT (best effort)
+:: =========================
+echo [0] Wiederherstellungspunkt (best effort)...
+echo [0] Restore Point attempt>>"%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "try { Enable-ComputerRestore -Drive 'C:\' -ErrorAction SilentlyContinue; Checkpoint-Computer -Description 'AVA01610_NACHHALL_Lockdown' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction SilentlyContinue } catch {}" ^
+  >>"%LOG%" 2>&1
+
+:: =========================
+::  1) INVENTORY / FORENSIC SNAPSHOT
+:: =========================
+echo [1] Snapshot/Forensik: Benutzer, Admins, Dienste, Tasks, Autostart, Netzwerk...
+echo [1] Snapshot start>>"%LOG%"
+
+echo --- USERS --- > "%LOGDIR%\users.txt"
+net user >> "%LOGDIR%\users.txt" 2>&1
+
+echo --- ADMINS --- > "%LOGDIR%\admins.txt"
+net localgroup administrators >> "%LOGDIR%\admins.txt" 2>&1
+
+echo --- LOCAL SECURITY POLICY (export) --- > "%LOGDIR%\secpol_export.txt"
+secedit /export /cfg "%LOGDIR%\secpol.cfg" /areas SECURITYPOLICY USER_RIGHTS >> "%LOGDIR%\secpol_export.txt" 2>&1
+
+echo --- SERVICES (running) --- > "%LOGDIR%\services_running.txt"
+sc query type= service state= all > "%LOGDIR%\services_all.txt" 2>&1
+sc query type= service state= running > "%LOGDIR%\services_running.txt" 2>&1
+
+echo --- SCHEDULED TASKS --- > "%LOGDIR%\scheduled_tasks.txt"
+schtasks /query /fo LIST /v > "%LOGDIR%\scheduled_tasks.txt" 2>&1
+
+echo --- STARTUP (WMIC) --- > "%LOGDIR%\startup_wmic.txt"
+wmic startup get Caption,Command,Location,User > "%LOGDIR%\startup_wmic.txt" 2>&1
+
+echo --- STARTUP (Registry Run keys) --- > "%LOGDIR%\startup_registry.txt"
+reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /s >> "%LOGDIR%\startup_registry.txt" 2>&1
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /s >> "%LOGDIR%\startup_registry.txt" 2>&1
+
+echo --- NETWORK CONNECTIONS --- > "%LOGDIR%\netstat_ano.txt"
+netstat -ano > "%LOGDIR%\netstat_ano.txt" 2>&1
+
+echo --- FIREWALL EXPORT --- > "%LOGDIR%\firewall_export.txt"
+netsh advfirewall export "%LOGDIR%\firewall.wfw" > "%LOGDIR%\firewall_export.txt" 2>&1
+
+echo --- INSTALLED SOFTWARE (WMIC) --- > "%LOGDIR%\installed_software.txt"
+wmic product get Name,Version,Vendor > "%LOGDIR%\installed_software.txt" 2>&1
+
+echo --- HOSTS FILE --- > "%LOGDIR%\hosts.txt"
+type "%SystemRoot%\System32\drivers\etc\hosts" > "%LOGDIR%\hosts.txt" 2>&1
+
+echo [1] Snapshot done>>"%LOG%"
+
+:: =========================
+::  2) ACCOUNT / PASSWORD POLICY HARDENING
+:: =========================
+echo [2] Passwort-/Account-Policy Hardening...
+echo [2] Password policy>>"%LOG%"
+
+:: Stronger local account policy
+net accounts /minpwlen:14 >nul 2>&1
+net accounts /maxpwage:30 >nul 2>&1
+net accounts /minpwage:1 >nul 2>&1
+net accounts /uniquepw:10 >nul 2>&1
+net accounts /lockoutthreshold:5 >nul 2>&1
+net accounts /lockoutduration:30 >nul 2>&1
+net accounts /lockoutwindow:30 >nul 2>&1
+
+:: Disable Guest
+net user guest /active:no >nul 2>&1
+
+:: =========================
+::  3) DISABLE REMOTE ACCESS / REMOTE MGMT (RDP, WinRM, Remote Registry)
+:: =========================
+echo [3] Remotezugriffe deaktivieren (RDP/WinRM/RemoteRegistry)...
+echo [3] Remote off>>"%LOG%"
+
+:: RDP off
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 1 /f >>"%LOG%" 2>&1
+sc stop TermService >>"%LOG%" 2>&1
+sc config TermService start= disabled >>"%LOG%" 2>&1
+
+:: Remote Registry off
+sc stop RemoteRegistry >>"%LOG%" 2>&1
+sc config RemoteRegistry start= disabled >>"%LOG%" 2>&1
+
+:: WinRM off (remote powershell / management)
+sc stop WinRM >>"%LOG%" 2>&1
+sc config WinRM start= disabled >>"%LOG%" 2>&1
+
+:: Disable Remote Assistance
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Remote Assistance" /v fAllowToGetHelp /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: =========================
+::  4) FIREWALL HARDENING
+:: =========================
+echo [4] Firewall Hardening (Inbound block, Outbound allow)...
+echo [4] Firewall>>"%LOG%"
+
+netsh advfirewall set allprofiles state on >>"%LOG%" 2>&1
+netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound >>"%LOG%" 2>&1
+netsh advfirewall set allprofiles settings inboundusernotification enable >>"%LOG%" 2>&1
+
+:: Optional: block common remote admin ports inbound explicitly (defense-in-depth)
+netsh advfirewall firewall add rule name="Block RDP In" dir=in action=block protocol=TCP localport=3389 >>"%LOG%" 2>&1
+netsh advfirewall firewall add rule name="Block WinRM In" dir=in action=block protocol=TCP localport=5985,5986 >>"%LOG%" 2>&1
+netsh advfirewall firewall add rule name="Block SMB In" dir=in action=block protocol=TCP localport=445 >>"%LOG%" 2>&1
+
+:: =========================
+::  5) SCRIPTING / MACRO / LOLBINS HARDENING
+:: =========================
+echo [5] Script-Engines deaktivieren (WSH) + PowerShell Script Restriction...
+echo [5] Scripting>>"%LOG%"
+
+:: Windows Script Host disable (.vbs/.js via wscript/cscript)
+reg add "HKLM\Software\Microsoft\Windows Script Host\Settings" /v Enabled /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: PowerShell: restrict scripts (still allows interactive PS; scripts blocked)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Restricted -Scope LocalMachine -Force" >>"%LOG%" 2>&1
+
+:: Office macro hardening (common pivot) - sets "Disable all macros without notification" for current machine policy
+reg add "HKLM\Software\Policies\Microsoft\Office\16.0\Word\Security" /v VBAWarnings /t REG_DWORD /d 4 /f >>"%LOG%" 2>&1
+reg add "HKLM\Software\Policies\Microsoft\Office\16.0\Excel\Security" /v VBAWarnings /t REG_DWORD /d 4 /f >>"%LOG%" 2>&1
+reg add "HKLM\Software\Policies\Microsoft\Office\16.0\PowerPoint\Security" /v VBAWarnings /t REG_DWORD /d 4 /f >>"%LOG%" 2>&1
+
+:: Disable Autorun/Autoplay (USB infection vector)
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun /t REG_DWORD /d 255 /f >>"%LOG%" 2>&1
+
+:: =========================
+::  6) BLOCK UNIX-LIKE SHELLS / WSL
+:: =========================
+echo [6] WSL/VMPlatform deaktivieren + Bash-Prozesse beenden...
+echo [6] WSL off>>"%LOG%"
+
+dism /online /disable-feature /featurename:Microsoft-Windows-Subsystem-Linux /norestart >>"%LOG%" 2>&1
+dism /online /disable-feature /featurename:VirtualMachinePlatform /norestart >>"%LOG%" 2>&1
+
+taskkill /IM wsl.exe /F >>"%LOG%" 2>&1
+taskkill /IM bash.exe /F >>"%LOG%" 2>&1
+taskkill /IM sh.exe /F >>"%LOG%" 2>&1
+
+:: =========================
+::  7) SMB / NETWORK HARDENING (LLMNR, NetBIOS, WPAD)
+:: =========================
+echo [7] Netzwerk-Härtung (SMB1 aus, SMB Encryption an, LLMNR/WPAD/NetBIOS aus)...
+echo [7] Network hardening>>"%LOG%"
+
+:: SMB hardening (PowerShell required)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force | Out-Null } catch {}" >>"%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-SmbServerConfiguration -EncryptData $true -Force | Out-Null } catch {}" >>"%LOG%" 2>&1
+
+:: LLMNR disable
+reg add "HKLM\Software\Policies\Microsoft\Windows NT\DNSClient" /v EnableMulticast /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: WPAD disable (proxy auto-detect)
+reg add "HKLM\Software\Policies\Microsoft\Windows\CurrentVersion\Internet Settings" /v EnableAutoproxyResultCache /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" /v AutoDetect /t REG_DWORD /d 0 /f >>"%LOG%" 2>&1
+
+:: NetBIOS over TCP/IP disable (best effort: all interfaces)
+for /f "tokens=*" %%i in ('reg query "HKLM\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces" 2^>nul ^| findstr /i "Tcpip_"') do (
+  reg add "%%i" /v NetbiosOptions /t REG_DWORD /d 2 /f >>"%LOG%" 2>&1
+)
+
+:: =========================
+::  8) DEFENDER HARDENING + ASR RULES
+:: =========================
+echo [8] Microsoft Defender: Realtime + ASR aktivieren...
+echo [8] Defender/ASR>>"%LOG%"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-MpPreference -DisableRealtimeMonitoring $false } catch {}" >>"%LOG%" 2>&1
+
+:: Enable cloud protection & sample submission (more detection)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "try { Set-MpPreference -MAPSReporting Advanced; Set-MpPreference -SubmitSamplesConsent 3 } catch {}" >>"%LOG%" 2>&1
+
+:: Attack Surface Reduction rules (common high-value set)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+ "$rules=@(
+ 'D4F940AB-401B-4EFC-AADC-AD5F3C50688A',  # Block Office from creating child processes
+ '3B576869-A4EC-4529-8536-B80A7769E899',  # Block Office from creating executable content
+ '75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84',  # Block Office from injecting code
+ 'BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550',  # Block executable content from email/webmail
+ 'D3E037E1-3EB8-44C8-A917-57927947596D',  # Block credential stealing from LSASS
+ '5BEB7EFE-FD9A-4556-801D-275E5FFC04CC',  # Block execution of potentially obfuscated scripts
+ '92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B'   # Block Win32 API calls from Office macros
+ );
+ try {
+   Add-MpPreference -AttackSurfaceReductionRules_Ids $rules -AttackSurfaceReductionRules_Actions (1,1,1,1,1,1,1)
+ } catch {}" >>"%LOG%" 2>&1
+
+:: =========================
+::  9) APPLOCKER (DENY RULES FOR COMMON SHELLS/SCRIPTS) - best effort
+:: =========================
+echo [9] AppLocker: Deny-Regeln für Bash/WSL/Script-Hosts (best effort)...
+echo [9] AppLocker>>"%LOG%"
+
+:: Ensure Application Identity service (needed for AppLocker enforcement)
+sc config AppIDSvc start= auto >>"%LOG%" 2>&1
+sc start AppIDSvc >>"%LOG%" 2>&1
+
+:: Create minimal AppLocker policy (default allow Windows) + explicit denies
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+"try {
+  $pol = New-AppLockerPolicy -DefaultRule -RuleType Executable,Script,WindowsInstaller;
+  $deny = @('bash.exe','sh.exe','wsl.exe','wscript.exe','cscript.exe');
+  foreach($d in $deny){
+    $r = New-AppLockerFileRule -RuleType Executable -User 'Everyone' -Action Deny -Name ('Deny_'+$d) -FilePath ('*\'+$d);
+    $pol.RuleCollections[0].Rules.Add($r) | Out-Null
+  }
+  Set-AppLockerPolicy -PolicyObject $pol -Merge -ErrorAction SilentlyContinue | Out-Null
+} catch {}" >>"%LOG%" 2>&1
+
+:: =========================
+::  10) AUDITING: LOGON / POLICY CHANGES / PROCESS CREATION (useful for intrusion)
+:: =========================
+echo [10] Auditing aktivieren (Logon/Policy/Process Creation)...
+echo [10] Auditing>>"%LOG%"
+
+auditpol /set /category:"Logon/Logoff" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"Account Logon" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"Account Management" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"Policy Change" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /category:"System" /success:enable /failure:enable >>"%LOG%" 2>&1
+auditpol /set /subcategory:"Process Creation" /success:enable /failure:enable >>"%LOG%" 2>&1
+
+:: Enable command line in process creation events (Event ID 4688 includes cmdline)
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System\Audit" /v ProcessCreationIncludeCmdLine_Enabled /t REG_DWORD /d 1 /f >>"%LOG%" 2>&1
+
+:: =========================
+::  11) POST-CHECKS / REPORT
+:: =========================
+echo [11] Post-Checks: aktive Verbindungen, verdächtige Dienste/Tasks quick scan...
+echo [11] Post checks>>"%LOG%"
+
+netstat -ano > "%LOGDIR%\netstat_ano_after.txt" 2>&1
+schtasks /query /fo LIST /v > "%LOGDIR%\scheduled_tasks_after.txt" 2>&1
+sc query type= service state= running > "%LOGDIR%\services_running_after.txt" 2>&1
+wevtutil qe Security /q:"*[System[(EventID=4624 or EventID=4625)]]" /c:50 /f:text > "%LOGDIR%\security_logon_last50.txt" 2>&1
+
+:: Defender quick scan (best effort)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Start-MpScan -ScanType QuickScan } catch {}" >>"%LOG%" 2>&1
+
+:: =========================
+::  DONE
+:: =========================
+echo.
+echo ==================================================
+echo  LOCKDOWN FERTIG.
+echo  Logs/Reports: %LOGDIR%
+echo  Wichtige Dateien:
+echo   - admins.txt (Admin-Gruppe)
+echo   - scheduled_tasks*.txt (Tasks)
+echo   - services_running*.txt
+echo   - netstat_ano*.txt
+echo   - firewall.wfw (Firewall-Backup)
+echo ==================================================
+echo.
+
+echo [HINWEIS] Fuer volle Wirksamkeit von AppLocker/WSL-Disable ist ein Neustart empfohlen.
+echo.
+
+pause
+endlocal
+exit /b 0
+
+:: -------------------------
+:: Minimal tee implementation (if "tee" missing)
+:: If "tee" exists, ignore this label.
+:: -------------------------
+:tee
+exit /b 0
+
+# Auto-open HTML report
+Start-Process $HtmlPath | Out-Null
+
+Write-Host ""
+Write-Host "FERTIG. Wenn du willst, paste mir nur die TOP FINDINGS hier rein â€” ich sag dir sofort, was echt gefÃ¤hrlich ist und was normal." -ForegroundColor Cyan
+
+
+
+
+<#
+AVA Remediation Toolkit — AVA 01610
+Dateiname: C:\temp\AVA_remediate_full.ps1
+Zweck: Detec
+
+
+
+
+
+
