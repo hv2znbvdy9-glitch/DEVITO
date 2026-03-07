@@ -16,6 +16,21 @@ engine = Engine()
 
 
 @app.command()
+def start(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print start banner without launching server.")
+) -> None:
+    """Start the AVA API server."""
+    console.print("START - JETZT!")
+    if dry_run:
+        console.print("ℹ️  Dry run enabled; server not started.")
+        return
+
+    from ava.__main__ import main as start_main
+
+    start_main()
+
+
+@app.command()
 def add(name: str, description: Optional[str] = None, command: Optional[str] = None) -> None:
     """Add a new task."""
     try:
