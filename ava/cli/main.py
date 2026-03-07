@@ -25,6 +25,7 @@ def start(
         console.print("ℹ️  Dry run enabled; server not started.")
         return
 
+    # Lazy import keeps CLI commands lightweight unless the server is started.
     from ava.__main__ import main as start_main
 
     start_main()
