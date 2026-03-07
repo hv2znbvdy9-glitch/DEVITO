@@ -24,13 +24,13 @@ def test_start_calls_main_when_not_dry_run(monkeypatch: pytest.MonkeyPatch) -> N
     """Ensure the start command invokes the AVA main entrypoint."""
     calls = {"count": 0}
 
-    dummy_module = types.ModuleType("ava.__main__")
+    mock_ava_main_module = types.ModuleType("ava.__main__")
 
     def fake_main() -> None:
         calls["count"] += 1
 
-    dummy_module.main = fake_main
-    monkeypatch.setitem(sys.modules, "ava.__main__", dummy_module)
+    mock_ava_main_module.main = fake_main
+    monkeypatch.setitem(sys.modules, "ava.__main__", mock_ava_main_module)
 
     runner = CliRunner()
     result = runner.invoke(app, ["start"])
