@@ -17,7 +17,11 @@ engine = Engine()
 
 @app.command()
 def start(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Print start banner without launching server.")
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the start banner only without launching the server.",
+    )
 ) -> None:
     """Start the AVA API server and print the START - JETZT! banner."""
     console.print("START - JETZT!")
