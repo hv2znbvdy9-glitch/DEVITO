@@ -113,6 +113,16 @@ cd AVA
 pip install -e ".[dev]"
 ```
 
+### Start AVA
+
+```bash
+# Start the API server
+ava start
+
+# Show the start banner only
+ava start --dry-run
+```
+
 ### Running Tests
 
 ```bash
