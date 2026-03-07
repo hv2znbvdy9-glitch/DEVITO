@@ -22,12 +22,12 @@ def test_start_dry_run_outputs_banner() -> None:
 
 def test_start_invokes_main_in_normal_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the start command invokes the AVA main entrypoint."""
-    calls = {"count": 0}
+    calls = []
 
     mock_ava_main_module = types.ModuleType("ava.__main__")
 
     def fake_main() -> None:
-        calls["count"] += 1
+        calls.append("called")
 
     mock_ava_main_module.main = fake_main
     monkeypatch.setitem(sys.modules, "ava.__main__", mock_ava_main_module)
@@ -36,4 +36,5 @@ def test_start_invokes_main_in_normal_mode(monkeypatch: pytest.MonkeyPatch) -> N
     result = runner.invoke(app, ["start"])
 
     assert result.exit_code == 0
-    assert calls["count"] == 1
+    assert "START - JETZT!" in result.output
+    assert calls == ["called"]
