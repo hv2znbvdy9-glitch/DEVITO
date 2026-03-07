@@ -17,7 +17,7 @@ def test_start_dry_run_outputs_banner() -> None:
 
     assert result.exit_code == 0
     assert "START - JETZT!" in result.output
-    assert "Dry run" in result.output
+    assert "Dry run enabled; server not started." in result.output
 
 
 def test_start_calls_main_when_not_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
