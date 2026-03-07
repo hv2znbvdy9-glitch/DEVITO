@@ -123,6 +123,8 @@ ava start
 ava start --dry-run
 ```
 
+The `ava start` command prints the required **"START - JETZT!"** banner on launch.
+
 ### Running Tests
 
 ```bash

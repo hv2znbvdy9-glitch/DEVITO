@@ -3,6 +3,7 @@
 import sys
 import types
 
+import pytest
 from typer.testing import CliRunner
 
 from ava.cli.main import app
@@ -19,7 +20,7 @@ def test_start_dry_run_outputs_banner() -> None:
     assert "Dry run" in result.output
 
 
-def test_start_calls_main_when_not_dry_run(monkeypatch) -> None:
+def test_start_calls_main_when_not_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the start command invokes the AVA main entrypoint."""
     calls = {"count": 0}
 
