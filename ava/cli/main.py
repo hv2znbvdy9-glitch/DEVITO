@@ -22,7 +22,7 @@ def start(
     """Start the AVA API server and print the START - JETZT! banner."""
     console.print("START - JETZT!")
     if dry_run:
-        console.print("ℹ️  Dry run enabled; server not started.")
+        console.print("Dry run enabled; server not started.")
         return
 
     # Lazy import keeps CLI commands lightweight unless the server is started.
