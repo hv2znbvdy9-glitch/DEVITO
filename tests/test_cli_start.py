@@ -20,7 +20,7 @@ def test_start_dry_run_outputs_banner() -> None:
     assert "Dry run enabled; server not started." in result.output
 
 
-def test_start_calls_main_when_not_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_invokes_main_in_normal_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the start command invokes the AVA main entrypoint."""
     calls = {"count": 0}
 
