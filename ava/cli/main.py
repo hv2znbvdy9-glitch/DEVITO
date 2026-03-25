@@ -128,6 +128,16 @@ def run(task_id: str, background: bool = False) -> None:
             console.print(task.result)
 
 
+@app.command("approve-all")
+def approve_all() -> None:
+    """Mark all pending tasks as approved/completed."""
+    count = engine.approve_all()
+    if count == 0:
+        console.print("ℹ️  No pending tasks to approve.", style="cyan")
+    else:
+        console.print(f"✅ Approved {count} task(s).", style="green")
+
+
 @app.command()
 def stats() -> None:
     """Show task statistics."""

@@ -89,6 +89,20 @@ class Engine:
         logger.info(f"Task completed: {task_id}")
         return True
 
+    def approve_all(self) -> int:
+        """Mark all pending tasks as completed.
+
+        Returns:
+            int: Number of tasks that were approved/completed.
+        """
+        count = 0
+        for task in self.tasks.values():
+            if not task.completed:
+                task.complete()
+                count += 1
+        logger.info(f"Approved all pending tasks: {count} task(s) completed")
+        return count
+
     def get_stats(self) -> Dict[str, int]:
         """Get engine statistics."""
         total = len(self.tasks)
