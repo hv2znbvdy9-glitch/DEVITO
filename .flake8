@@ -1,0 +1,18 @@
+# .flake8 configuration
+[flake8]
+max-line-length = 100
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    .tox,
+    .pytest_cache,
+    .mypy_cache
+ignore = 
+    E203,
+    W503
