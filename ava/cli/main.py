@@ -1,10 +1,13 @@
 """CLI module for AVA."""
 
+import json
 import typer
 from typing import Optional
+from ava.clients.isc_client import ISCClient
 from ava.core.engine import Engine
 from ava.core.logging import LoggerConfig, logger
 from ava.config.settings import get_config
+from ava.utils.exceptions import ValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -139,6 +142,41 @@ def stats() -> None:
         )
         console.print(f"  Progress:        {percentage:.1f}%")
     console.print()
+
+
+@app.command("run-workflow")
+def run_workflow(
+    workflow_id: str = typer.Argument(..., help="ID of the workflow to test-execute"),
+    tenant: str = typer.Option("", "--tenant", help="ISC tenant identifier"),
+    payload: Optional[str] = typer.Option(
+        None, "--payload", help="Optional JSON object passed as the workflow input payload"
+    ),
+) -> None:
+    """Test-execute an ISC workflow and preview the result."""
+    client = ISCClient(tenant=tenant)
+
+    if payload is not None:
+        try:
+            json.loads(payload)
+        except json.JSONDecodeError as exc:
+            console.print(f"❌ Invalid JSON payload: {exc}", style="red")
+            raise typer.Exit(code=1)
+
+    console.print(f"⏳ Running workflow [cyan]{workflow_id}[/cyan]…")
+
+    try:
+        result = client.testWorkflow(workflow_id, payload=payload)
+    except ValidationError as exc:
+        console.print(f"❌ {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    if result.succeeded:
+        console.print("✅ Workflow executed successfully", style="green")
+    else:
+        console.print(f"⚠️  Workflow finished with status: {result.status}", style="yellow")
+
+    console.print("\n[bold]Result preview:[/bold]")
+    console.print_json(json.dumps(result.to_dict()))
 
 
 @app.callback()
