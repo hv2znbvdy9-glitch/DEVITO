@@ -550,9 +550,10 @@ function Show-AvaDashboard {
     Write-Host $border -ForegroundColor DarkCyan
     Write-Host ''
 
-    # Risk gauge
-    $filledBlocks = [math]::Floor($score / 5)
-    $emptyBlocks  = 20 - $filledBlocks
+    # Risk gauge: 20 blocks total, each block = 5 points (100 / 20)
+    $gaugeTotal   = 20
+    $filledBlocks = [math]::Floor($score / ($gaugeTotal > 0 ? (100 / $gaugeTotal) : 5))
+    $emptyBlocks  = $gaugeTotal - $filledBlocks
     $gauge = ('[' + ('#' * $filledBlocks) + ('-' * $emptyBlocks) + ']')
     Write-Host ("  RISK SCORE : {0}/100  {1}" -f $score, $gauge) -ForegroundColor $riskColor
     Write-Host ("  BEWERTUNG  : {0}" -f $riskLabel) -ForegroundColor $riskColor
@@ -829,6 +830,10 @@ function Get-AvaProcessRisk {
     Write-Host 'Starte Prozess-Risikobewertung...' -ForegroundColor Cyan
     Write-AvaLog -Level 'INFO' -Message 'Prozess-Risikobewertung gestartet'
 
+    # Process risk thresholds
+    $HighCpuThresholdSeconds = 300   # total accumulated CPU seconds
+    $HighMemoryThresholdMB   = 500   # working set in megabytes
+
     $lolBins = @(
         'powershell','pwsh','cmd','wscript','cscript','mshta',
         'rundll32','regsvr32','bitsadmin','certutil','wmic',
@@ -874,18 +879,18 @@ function Get-AvaProcessRisk {
             }
         }
 
-        # High CPU
+        # High CPU (total accumulated CPU seconds)
         try {
             $cpu = $proc.CPU
-            if ($cpu -gt 300) {
+            if ($cpu -gt $HighCpuThresholdSeconds) {
                 $riskScore += 10
                 $riskFactors.Add('HighCPU')
             }
         }
         catch { }
 
-        # High memory (>500 MB working set)
-        if ($proc.WorkingSet64 -gt 500MB) {
+        # High memory (working set exceeds threshold)
+        if ($proc.WorkingSet64 -gt ($HighMemoryThresholdMB * 1MB)) {
             $riskScore += 5
             $riskFactors.Add('HighMemory')
         }
@@ -1158,6 +1163,11 @@ function Start-AvaContinuousMonitor {
             Compare-AvaBaseline -OldReportPath $previousReportPath | Out-Null
             Remove-Item -Path $previousReportPath -Force -ErrorAction SilentlyContinue
         }
+
+        # Cleanup stale previous-report files older than 1 hour (safety net)
+        Get-ChildItem -Path $script:AvaRoot -Filter 'report_prev_*.json' -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt (Get-Date).AddHours(-1) } |
+            ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 
         # Show dashboard summary
         Show-AvaDashboard
