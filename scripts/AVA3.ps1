@@ -55,7 +55,8 @@ function Get-RegistryDwordSafe {
 function Try-GetServiceInfo {
     param([Parameter(Mandatory)][string]$Name)
     try {
-        $svc = Get-CimInstance Win32_Service -Filter "Name='$Name'" -ErrorAction Stop
+        $safeName = $Name -replace "[^a-zA-Z0-9_]", ""
+        $svc = Get-CimInstance Win32_Service -Filter "Name='$safeName'" -ErrorAction Stop
         [pscustomobject]@{
             Name      = $svc.Name
             State     = $svc.State
@@ -116,6 +117,8 @@ Safe-Run -Title "PrivacyAndRemoteStatus" -ScriptBlock {
         InterpretedRdpState = switch ($rdpValue) {
             0 { "RDP erlaubt" }
             1 { "RDP blockiert/deaktiviert" }
+            "NotSet" { "Nicht konfiguriert (Registry-Wert nicht gesetzt)" }
+            "PathOrValueNotFound" { "Nicht verfügbar (Registry-Pfad/Wert nicht gefunden)" }
             default { "Unbekannt" }
         }
     }
