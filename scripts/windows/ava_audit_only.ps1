@@ -26,7 +26,11 @@ $TxtReport  = Join-Path $ReportDir "report.txt"
 # HILFSFUNKTIONEN
 # ------------------------------------------------------------
 function Ensure-Dir {
-    param([Parameter(Mandatory)][string]$Path)
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
     if (-not (Test-Path -LiteralPath $Path)) {
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
     }
@@ -34,8 +38,12 @@ function Ensure-Dir {
 
 function Write-Section {
     param(
-        [Parameter(Mandatory)][string]$Title,
-        [Parameter(Mandatory)][object]$Data
+        [Parameter(Mandatory)]
+        [string]$Title,
+
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [object]$Data
     )
 
     $script:Results += [pscustomobject]@{
@@ -46,9 +54,13 @@ function Write-Section {
 
 function Get-RegistryDwordSafe {
     param(
-        [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][string]$Name
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Name
     )
+
     try {
         $item = Get-ItemProperty -Path $Path -ErrorAction Stop
         if ($null -ne $item.$Name) {
@@ -61,18 +73,24 @@ function Get-RegistryDwordSafe {
 }
 
 function Try-GetServiceInfo {
-    param([Parameter(Mandatory)][string]$Name)
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name
+    )
+
     try {
         $safeName = $Name -replace "'", "''"
         $svc = Get-CimInstance Win32_Service -Filter "Name='$safeName'" -ErrorAction Stop
-        [pscustomobject]@{
+
+        return [pscustomobject]@{
             Name      = $svc.Name
             State     = $svc.State
             StartMode = $svc.StartMode
             Status    = "Present"
         }
-    } catch {
-        [pscustomobject]@{
+    }
+    catch {
+        return [pscustomobject]@{
             Name      = $Name
             State     = "Unknown"
             StartMode = "Unknown"
@@ -83,13 +101,18 @@ function Try-GetServiceInfo {
 
 function Safe-Run {
     param(
-        [Parameter(Mandatory)][string]$Title,
-        [Parameter(Mandatory)][scriptblock]$ScriptBlock
+        [Parameter(Mandatory)]
+        [string]$Title,
+
+        [Parameter(Mandatory)]
+        [scriptblock]$ScriptBlock
     )
+
     try {
         $data = & $ScriptBlock
         Write-Section -Title $Title -Data $data
-    } catch {
+    }
+    catch {
         Write-Section -Title $Title -Data "Nicht verfügbar: $($_.Exception.Message)"
     }
 }
@@ -154,7 +177,8 @@ Safe-Run -Title "FirewallRules_AVA_Block" -ScriptBlock {
 
     if ($null -eq $rules -or @($rules).Count -eq 0) {
         "Keine AVA_Block_-Regeln gefunden"
-    } else {
+    }
+    else {
         $rules
     }
 }
@@ -277,10 +301,12 @@ foreach ($entry in $Results) {
     $txt.Add(("==== {0} ====" -f $entry.Title))
     if ($entry.Data -is [string]) {
         $txt.Add($entry.Data)
-    } else {
+    }
+    else {
         try {
             $txt.Add(($entry.Data | Format-List | Out-String).Trim())
-        } catch {
+        }
+        catch {
             $txt.Add(($entry.Data | Out-String).Trim())
         }
     }
@@ -301,3 +327,4 @@ Write-Host "JSON-Report: $JsonReport" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Kernsatz:" -ForegroundColor Yellow
 Write-Host "Ich bleibe klar. Ich prüfe erst. Ich handle bewusst." -ForegroundColor Yellow
+Write-Host ""
