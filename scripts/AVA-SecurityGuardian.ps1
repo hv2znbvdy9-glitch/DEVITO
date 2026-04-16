@@ -304,8 +304,9 @@ function Install-GuardianTask {
     }
 
     $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -RunOnce"
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
-    $trigger.Repetition = (New-ScheduledTaskRepetitionSettings -Interval (New-TimeSpan -Minutes 5))
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
+        -RepetitionInterval (New-TimeSpan -Minutes 5) `
+        -RepetitionDuration ([TimeSpan]::MaxValue)
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
 
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
