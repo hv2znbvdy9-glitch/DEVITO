@@ -43,6 +43,7 @@ $CanaryFiles = @(
 # =========================
 # INIT
 # =========================
+Add-Type -AssemblyName System.Web
 New-Item -ItemType Directory -Path $Root,$LogDir,$ReportDir,$StateDir -Force | Out-Null
 
 function Write-JsonLine {
