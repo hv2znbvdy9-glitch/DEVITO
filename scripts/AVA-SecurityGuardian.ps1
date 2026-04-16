@@ -14,9 +14,6 @@ AVA Security Guardian - Defensive Monitoring & Hardening
 Rein lokal / defensiv / nur auf autorisierten Systemen nutzen
 #>
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-
 param(
     [switch]$RunOnce,
     [switch]$InstallTask,
@@ -24,6 +21,9 @@ param(
     [switch]$RollbackFirewall,
     [switch]$HardenRemoteServices
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
 # =========================
 # CONFIG
@@ -103,7 +103,9 @@ function Save-Baseline {
 function Test-Admins {
     $admins = Get-LocalGroupMember Administrators | Select-Object Name
     foreach ($a in $admins) {
-        if ($AllowedAdmins -notcontains $a.Name) {
+        # Extract the bare username from DOMAIN\User or COMPUTER\User format
+        $bareName = ($a.Name -split '\\')[-1]
+        if ($AllowedAdmins -notcontains $bareName) {
             Write-Alert -Message "UNAUTHORIZED ADMIN: $($a.Name)" -Severity 'HIGH'
         }
     }
@@ -207,9 +209,12 @@ function Test-NetworkConnections {
         $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
         if ($proc) {
             $path = $proc.Path
-            $riskyTools = @('powershell', 'cmd', 'python', 'certutil', 'bitsadmin')
+            $riskyTools = @(
+                'powershell', 'pwsh', 'cmd', 'python', 'certutil', 'bitsadmin',
+                'curl', 'wget', 'nc', 'psexec', 'wmic', 'mshta', 'regsvr32'
+            )
 
-            if ($proc.Name -in $riskyTools -or ($path -and $path -like '*\AppData\Local\Temp\*')) {
+            if ($proc.Name.ToLower() -in $riskyTools -or ($path -and $path -like '*\AppData\Local\Temp\*')) {
                 Write-Alert -Message ("NETWORK ALERT: {0} -> {1}:{2} (Path: {3})" -f `
                     $proc.Name, $c.RemoteAddress, $c.RemotePort, $path) -Severity 'CRITICAL'
             }
@@ -263,6 +268,14 @@ function Start-CanaryWatchdog {
             $changedPath = $Event.SourceEventArgs.FullPath
             $changeType = $Event.SourceEventArgs.ChangeType
             Write-Host "[!] ALERT: Canary File $changeType - $changedPath" -ForegroundColor Red
+
+            $alertEntry = @{
+                time     = (Get-Date).ToString('o')
+                severity = 'HIGH'
+                message  = "CANARY $changeType : $changedPath"
+            }
+            $json = $alertEntry | ConvertTo-Json -Compress -Depth 5
+            Add-Content -Path $using:AlertLog -Value $json
         }
 
         Register-ObjectEvent $watcher 'Changed' -Action $action | Out-Null
@@ -328,8 +341,9 @@ $($rows -join "`n")
 function Install-GuardianTask {
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
         -Argument "-File `"$PSCommandPath`" -RunOnce"
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
-    $trigger.RepetitionInterval = New-TimeSpan -Minutes 5
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
+        -RepetitionInterval (New-TimeSpan -Minutes 5) `
+        -RepetitionDuration ([TimeSpan]::MaxValue)
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
 
     Register-ScheduledTask -TaskName $TaskName `
