@@ -105,7 +105,7 @@ function Check-Admins {
 
     foreach ($admin in $admins) {
         if ($ComputerAdmins -notcontains $admin) {
-            Write-Alert -Message "UNAUTHORIZED ADMIN DETECTED: $admin" -Severity HIGH
+            Write-Alert -Message "UNAUTHORIZED ADMIN DETECTED: $admin" -Severity 'HIGH'
         }
     }
 }
@@ -125,7 +125,7 @@ function Initialize-Canaries {
 function Check-Canaries {
     foreach ($file in $CanaryFiles) {
         if (-not (Test-Path -LiteralPath $file)) {
-            Write-Alert -Message "CANARY DELETED OR MISSING: $file" -Severity HIGH
+            Write-Alert -Message "CANARY DELETED OR MISSING: $file" -Severity 'HIGH'
         }
     }
 }
@@ -145,7 +145,7 @@ function Check-ScriptHash {
         $old = (Get-Content -Path $HashPath -Raw).Trim()
         $new = (Get-FileHash -Path $PSCommandPath -Algorithm SHA256).Hash
         if ($old -and $old -ne $new) {
-            Write-Alert -Message "SCRIPT TAMPER DETECTED" -Severity HIGH
+            Write-Alert -Message "SCRIPT TAMPER DETECTED" -Severity 'HIGH'
         }
     }
 }
@@ -223,10 +223,10 @@ function Check-Network {
         try { $path = $proc.Path } catch {}
 
         if ($name -in @('powershell','pwsh','cmd','python','certutil','bitsadmin')) {
-            Write-Alert -Message "SUSPICIOUS CONNECTION: $name -> $remote`:$($c.RemotePort)" -Severity HIGH
+            Write-Alert -Message "SUSPICIOUS CONNECTION: $name -> $remote`:$($c.RemotePort)" -Severity 'HIGH'
         }
         elseif ($path -and $path -like "*\AppData\Local\Temp\*") {
-            Write-Alert -Message "TEMP PATH NETWORK PROCESS: $name -> $remote`:$($c.RemotePort) [$path]" -Severity CRITICAL
+            Write-Alert -Message "TEMP PATH NETWORK PROCESS: $name -> $remote`:$($c.RemotePort) [$path]" -Severity 'CRITICAL'
         }
     }
 }
@@ -250,7 +250,7 @@ function Scan-SuspiciousProcesses {
         }
 
         if (($foundFlags | Measure-Object).Count -ge 2 -or $cmdLower.Contains("-enc")) {
-            Write-Alert -Message "SUSPICIOUS PS PROCESS: PID $($p.ProcessId) | Flags: $($foundFlags -join ', ')" -Severity CRITICAL
+            Write-Alert -Message "SUSPICIOUS PS PROCESS: PID $($p.ProcessId) | Flags: $($foundFlags -join ', ')" -Severity 'CRITICAL'
         }
     }
 }
@@ -285,8 +285,8 @@ h1 { color: #00ffcc; border-bottom: 2px solid #00ffcc; padding-bottom: 10px; }
 
     $body = foreach ($a in $items) {
         $sev = [string]$a.severity
-        $msg = [System.Web.HttpUtility]::HtmlEncode([string]$a.message)
-        $tim = [System.Web.HttpUtility]::HtmlEncode([string]$a.time)
+        $msg = [System.Net.WebUtility]::HtmlEncode([string]$a.message)
+        $tim = [System.Net.WebUtility]::HtmlEncode([string]$a.time)
 
         "<div class='card $sev'><span class='time'>$tim [$sev]</span><span class='msg'>$msg</span></div>"
     }
