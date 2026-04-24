@@ -1,3 +1,22 @@
+"""Tests for AVA LSP module."""
+
+import json
+
+
+def _make_request(method: str, req_id: int, params: dict | None = None) -> dict:
+    """Build a JSON-RPC request message."""
+    msg: dict = {"jsonrpc": "2.0", "id": req_id, "method": method}
+    if params is not None:
+        msg["params"] = params
+    return msg
+
+
+def _make_notification(method: str) -> dict:
+    """Build a JSON-RPC notification (no id)."""
+    return {"jsonrpc": "2.0", "method": method}
+
+
+class TestLSPModule:
     def test_module_is_importable(self):
         import ava.lsp.__main__  # noqa: F401
 
@@ -28,10 +47,10 @@
 
 def _build_lsp_bytes(messages):
     """Encode a list of JSON-RPC messages into LSP wire format."""
-    import json
     parts = []
     for msg in messages:
         body = json.dumps(msg).encode("utf-8")
         header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
         parts.append(header + body)
     return b"".join(parts)
+

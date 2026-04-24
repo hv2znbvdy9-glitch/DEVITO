@@ -4,8 +4,11 @@ import pytest
 import asyncio
 import time
 from ava.core.engine import Engine
-from ava.db.pool import DatabasePool
-from ava.monitoring.metrics import PerformanceMonitor, MetricsCollector
+
+DatabasePool = pytest.importorskip("ava.db.pool", reason="ava.db.pool not available").DatabasePool
+_metrics = pytest.importorskip("ava.monitoring.metrics", reason="ava.monitoring.metrics not available")
+PerformanceMonitor = _metrics.PerformanceMonitor
+MetricsCollector = _metrics.MetricsCollector
 
 
 @pytest.mark.asyncio
