@@ -1,24 +1,26 @@
 """AVA Wellbeing Dashboard Configuration."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Dict, Any
 from enum import Enum
 
 
 class PillarColor(str, Enum):
     """Pillar color scheme."""
+
     HAPPINESS = "#FFD700"  # Gold
-    HEALTH = "#00D084"     # Emerald
-    LOVE = "#FF6B9D"       # Pink
-    FREEDOM = "#4A90E2"    # Blue
-    LEISURE = "#7ED321"    # Green
-    WEALTH = "#50E3C2"     # Teal
-    PEACE = "#8B7FD0"      # Purple
+    HEALTH = "#00D084"  # Emerald
+    LOVE = "#FF6B9D"  # Pink
+    FREEDOM = "#4A90E2"  # Blue
+    LEISURE = "#7ED321"  # Green
+    WEALTH = "#50E3C2"  # Teal
+    PEACE = "#8B7FD0"  # Purple
 
 
 @dataclass
 class PillarConfig:
     """Configuration for a wellbeing pillar."""
+
     name: str
     icon: str
     color: str
@@ -28,7 +30,7 @@ class PillarConfig:
 
 class WellbeingDashboard:
     """🌟 AVA Wellbeing Dashboard Configuration."""
-    
+
     # Pillar configurations
     PILLARS: Dict[str, PillarConfig] = {
         "happiness": PillarConfig(
@@ -36,52 +38,52 @@ class WellbeingDashboard:
             icon="💚",
             color=PillarColor.HAPPINESS,
             description="Track joy, achievements, and motivation",
-            short_name="GLÜCK"
+            short_name="GLÜCK",
         ),
         "health": PillarConfig(
             name="Health",
             icon="🏥",
             color=PillarColor.HEALTH,
             description="System health and vitality checks",
-            short_name="GESUNDHEIT"
+            short_name="GESUNDHEIT",
         ),
         "love": PillarConfig(
             name="Love & Community",
             icon="💕",
             color=PillarColor.LOVE,
             description="Connections, collaborations, relationships",
-            short_name="LIEBE"
+            short_name="LIEBE",
         ),
         "freedom": PillarConfig(
             name="Freedom",
             icon="🦅",
             color=PillarColor.FREEDOM,
             description="Multi-cloud, decentralization, independence",
-            short_name="FREIHEIT"
+            short_name="FREIHEIT",
         ),
         "leisure": PillarConfig(
             name="Leisure & Automation",
             icon="🌴",
             color=PillarColor.LEISURE,
             description="Saved time, automations, smart workflows",
-            short_name="FREIZEIT"
+            short_name="FREIZEIT",
         ),
         "wealth": PillarConfig(
             name="Wealth & Optimization",
             icon="💰",
             color=PillarColor.WEALTH,
             description="Cost optimization, resource efficiency",
-            short_name="GELD"
+            short_name="GELD",
         ),
         "peace": PillarConfig(
             name="Peace & Rest",
             icon="🧘",
             color=PillarColor.PEACE,
             description="Meditation, chill mode, quiet hours",
-            short_name="RUHE"
+            short_name="RUHE",
         ),
     }
-    
+
     # UI Layout Configuration
     LAYOUT = {
         "theme": "zen",  # zen, dark, light, cyberpunk
@@ -91,7 +93,7 @@ class WellbeingDashboard:
         "show_recommendations": True,
         "show_history": True,
     }
-    
+
     # Visualization Configuration
     VISUALIZATION = {
         "main_display": "circular_mandala",  # Main 7-pillar display
@@ -100,7 +102,7 @@ class WellbeingDashboard:
         "recommendation_display": "card",
         "chill_mode_display": "zen",
     }
-    
+
     # Color schemes
     COLOR_SCHEMES = {
         "zen": {
@@ -128,7 +130,7 @@ class WellbeingDashboard:
             "error": "#FF6B6B",
         },
     }
-    
+
     # Animation presets
     ANIMATIONS = {
         "pulse": {
@@ -144,7 +146,7 @@ class WellbeingDashboard:
             "easing": "ease-in-out",
         },
     }
-    
+
     # Chill mode settings
     CHILL_MODE = {
         "light": {
@@ -173,7 +175,7 @@ class WellbeingDashboard:
             "show_only_meditation": True,
         },
     }
-    
+
     @classmethod
     def get_dashboard_config(cls) -> Dict[str, Any]:
         """Get complete dashboard configuration."""
@@ -194,7 +196,7 @@ class WellbeingDashboard:
             "animations": cls.ANIMATIONS,
             "chill_mode": cls.CHILL_MODE,
         }
-    
+
     @classmethod
     def get_zen_theme(cls) -> Dict[str, Any]:
         """Get Zen theme specifically."""
@@ -214,19 +216,23 @@ class WellbeingDashboard:
                 "ai_recommendations": True,
             },
         }
-    
+
     @classmethod
     def get_pillar_details(cls, pillar: str) -> Dict[str, Any]:
         """Get detailed configuration for a pillar."""
         if pillar not in cls.PILLARS:
             return {}
-        
+
         config = cls.PILLARS[pillar]
-        
+
         # Pillar-specific endpoints
         endpoints = {
             "happiness": [
-                {"method": "POST", "path": "/wellbeing/happiness/unlock", "action": "Track achievement"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/happiness/unlock",
+                    "action": "Track achievement",
+                },
                 {"method": "GET", "path": "/wellbeing/happiness/score", "action": "Get score"},
             ],
             "health": [
@@ -234,28 +240,56 @@ class WellbeingDashboard:
                 {"method": "GET", "path": "/wellbeing/health/status", "action": "Get status"},
             ],
             "love": [
-                {"method": "POST", "path": "/wellbeing/community/connect", "action": "Connect users"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/community/connect",
+                    "action": "Connect users",
+                },
                 {"method": "POST", "path": "/wellbeing/community/share", "action": "Share task"},
             ],
             "freedom": [
-                {"method": "POST", "path": "/wellbeing/freedom/register-provider", "action": "Register provider"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/freedom/register-provider",
+                    "action": "Register provider",
+                },
                 {"method": "GET", "path": "/wellbeing/freedom/score", "action": "Get score"},
             ],
             "leisure": [
-                {"method": "POST", "path": "/wellbeing/leisure/automate", "action": "Create automation"},
-                {"method": "POST", "path": "/wellbeing/leisure/execute", "action": "Execute automations"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/leisure/automate",
+                    "action": "Create automation",
+                },
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/leisure/execute",
+                    "action": "Execute automations",
+                },
             ],
             "wealth": [
-                {"method": "POST", "path": "/wellbeing/wealth/optimize", "action": "Optimize resources"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/wealth/optimize",
+                    "action": "Optimize resources",
+                },
                 {"method": "GET", "path": "/wellbeing/wealth/score", "action": "Get score"},
             ],
             "peace": [
-                {"method": "POST", "path": "/wellbeing/peace/meditate", "action": "Start meditation"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/peace/meditate",
+                    "action": "Start meditation",
+                },
                 {"method": "POST", "path": "/wellbeing/peace/chill", "action": "Enable chill mode"},
-                {"method": "POST", "path": "/wellbeing/peace/quiet-hours", "action": "Set quiet hours"},
+                {
+                    "method": "POST",
+                    "path": "/wellbeing/peace/quiet-hours",
+                    "action": "Set quiet hours",
+                },
             ],
         }
-        
+
         return {
             "name": config.name,
             "icon": config.icon,
@@ -264,7 +298,7 @@ class WellbeingDashboard:
             "short_name": config.short_name,
             "endpoints": endpoints.get(pillar, []),
         }
-    
+
     @classmethod
     def get_ai_dashboard_config(cls) -> Dict[str, Any]:
         """Get AI optimization dashboard configuration."""
@@ -275,37 +309,37 @@ class WellbeingDashboard:
                     "title": "Pattern Analysis",
                     "icon": "📊",
                     "endpoint": "/api/wellbeing/ai/analyze-patterns",
-                    "description": "Analyze patterns in your wellbeing data"
+                    "description": "Analyze patterns in your wellbeing data",
                 },
                 {
                     "title": "24h Prediction",
                     "icon": "🔮",
                     "endpoint": "/api/wellbeing/ai/predict-wellbeing",
-                    "description": "Predict your wellbeing for next 24 hours"
+                    "description": "Predict your wellbeing for next 24 hours",
                 },
                 {
                     "title": "Smart Recommendations",
                     "icon": "💡",
                     "endpoint": "/api/wellbeing/ai/recommendations",
-                    "description": "Get personalized AI recommendations"
+                    "description": "Get personalized AI recommendations",
                 },
                 {
                     "title": "Chill Mode Optimizer",
                     "icon": "✨",
                     "endpoint": "/api/wellbeing/ai/optimize-chill",
-                    "description": "AI-optimized chill mode settings"
+                    "description": "AI-optimized chill mode settings",
                 },
                 {
                     "title": "Predict Next Action",
                     "icon": "🎯",
                     "endpoint": "/api/wellbeing/ai/predict-next-action",
-                    "description": "Predict what you'll do next"
+                    "description": "Predict what you'll do next",
                 },
             ],
             "feedback": {
                 "endpoint": "/api/wellbeing/ai/feedback",
-                "description": "Help AI learn from your feedback"
-            }
+                "description": "Help AI learn from your feedback",
+            },
         }
 
 

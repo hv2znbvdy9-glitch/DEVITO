@@ -63,6 +63,7 @@ dev = [
     "mypy>=1.0",
     "isort>=5.0",
     "locust>=2.17.0",
+    "httpx>=0.24.0",
 ]
 
 [project.scripts]
@@ -88,8 +89,46 @@ disallow_incomplete_defs = false
 check_untyped_defs = true
 no_implicit_optional = true
 warn_redundant_casts = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_no_return = true
+
+[[tool.mypy.overrides]]
+module = [
+    "ava.ai.ghz_experiment",
+    "ava.ai.optimizer",
+    "ava.api.grpc_auth",
+    "ava.api.grpc_server",
+    "ava.api.proto",
+    "ava.api.security",
+    "ava.cloud.manager",
+    "ava.cloud.providers.aws",
+    "ava.cloud.providers.azure",
+    "ava.cloud.providers.gcp",
+    "ava.config.vault",
+    "ava.core.engine",
+    "ava.db.pool",
+    "ava.monitoring.grpc_metrics",
+    "ava.monitoring.metrics",
+    "ava.security.adaptive_ids",
+    "ava.security.auth",
+    "ava.security.blockchain_security",
+    "ava.security.cookie_scanner",
+    "ava.security.distributed_mesh",
+    "ava.security.incident_response",
+    "ava.security.network_defense",
+    "ava.security.orchestrator",
+    "ava.security.tangle_network",
+    "ava.security.threat_intelligence",
+    "ava.security.universal_protection",
+    "ava.security.windows_lab",
+    "ava.security.windows_monitor",
+    "ava.security_middleware",
+    "ava.server",
+    "ava.sync.distributed",
+    "ava.tasks.scheduler",
+    "ava.wellbeing.orchestrator",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"

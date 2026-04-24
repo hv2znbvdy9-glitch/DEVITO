@@ -29,11 +29,7 @@ class Task:
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
-        created_str = (
-            self.created_at.isoformat()
-            if self.created_at
-            else None
-        )
+        created_str = self.created_at.isoformat() if self.created_at else None
         return {
             "id": self.id,
             "name": self.name,

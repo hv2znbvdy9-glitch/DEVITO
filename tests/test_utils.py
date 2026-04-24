@@ -36,6 +36,7 @@ def test_validate_type_raises_error():
 
 def test_safe_call():
     """Test safe function call."""
+
     def successful_func():
         return "success"
 
@@ -45,6 +46,7 @@ def test_safe_call():
 
 def test_safe_call_with_error():
     """Test safe call handles errors."""
+
     def failing_func():
         raise Exception("Test error")
 

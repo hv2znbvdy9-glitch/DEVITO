@@ -17,15 +17,11 @@ def measure_performance(func: Callable[..., T]) -> Callable[..., T]:
         try:
             result = func(*args, **kwargs)
             elapsed = time.time() - start_time
-            logger.info(
-                f"{func.__name__} executed in {elapsed:.4f} seconds"
-            )
+            logger.info(f"{func.__name__} executed in {elapsed:.4f} seconds")
             return result
         except Exception as e:
             elapsed = time.time() - start_time
-            logger.error(
-                f"{func.__name__} failed after {elapsed:.4f} seconds: {e}"
-            )
+            logger.error(f"{func.__name__} failed after {elapsed:.4f} seconds: {e}")
             raise
 
     return wrapper
