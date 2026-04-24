@@ -68,3 +68,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    sys.exit(1)  # EOF before exit notification – unexpected termination

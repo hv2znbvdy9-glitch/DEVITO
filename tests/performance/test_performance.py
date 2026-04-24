@@ -5,10 +5,14 @@ import asyncio
 import time
 from ava.core.engine import Engine
 
-DatabasePool = pytest.importorskip("ava.db.pool", reason="ava.db.pool not available").DatabasePool
-_metrics = pytest.importorskip("ava.monitoring.metrics", reason="ava.monitoring.metrics not available")
-PerformanceMonitor = _metrics.PerformanceMonitor
-MetricsCollector = _metrics.MetricsCollector
+_db_pool_module = pytest.importorskip("ava.db.pool", reason="ava.db.pool not available")
+if not hasattr(_db_pool_module, "DatabasePool"):
+    pytest.skip("ava.db.pool.DatabasePool not available", allow_module_level=True)
+DatabasePool = _db_pool_module.DatabasePool
+
+_metrics_module = pytest.importorskip("ava.monitoring.metrics", reason="ava.monitoring.metrics not available")
+PerformanceMonitor = _metrics_module.PerformanceMonitor
+MetricsCollector = _metrics_module.MetricsCollector
 
 
 @pytest.mark.asyncio
