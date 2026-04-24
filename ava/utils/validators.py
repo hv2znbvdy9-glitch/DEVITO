@@ -15,9 +15,7 @@ def validate_not_empty(value: Any, name: str = "value") -> Any:
 def validate_type(value: Any, expected_type: type, name: str = "value") -> Any:
     """Validate that value is of expected type."""
     if not isinstance(value, expected_type):
-        raise TypeError(
-            f"{name} must be {expected_type.__name__}, got {type(value).__name__}"
-        )
+        raise TypeError(f"{name} must be {expected_type.__name__}, got {type(value).__name__}")
     return value
 
 
@@ -43,7 +41,5 @@ class SingletonMeta(type):
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         """Control instance creation."""
         if cls not in cls._instances:
-            cls._instances[cls] = super(SingletonMeta, cls).__call__(
-                *args, **kwargs
-            )
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
         return cls._instances[cls]

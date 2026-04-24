@@ -26,7 +26,7 @@ try:
     from . import ava_service_pb2_grpc
 except ImportError:
     import warnings
+
     warnings.warn(
-        "Proto files not compiled yet. Run 'make proto-compile' to generate them.",
-        ImportWarning
+        "Proto files not compiled yet. Run 'make proto-compile' to generate them.", ImportWarning
     )

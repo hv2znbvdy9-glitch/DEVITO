@@ -1,17 +1,20 @@
 """Synchronization system for AVA."""
 
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Callable
 from datetime import datetime
 import asyncio
 from enum import Enum
 from ava.core.logging import logger
 
+
 class SyncStatus(str, Enum):
     """Sync status enum."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     SUCCESS = "success"
     FAILED = "failed"
+
 
 class SyncEvent:
     """Represents a sync event."""
@@ -22,6 +25,7 @@ class SyncEvent:
         self.data = data
         self.timestamp = datetime.now()
         self.status = SyncStatus.PENDING
+
 
 class SyncQueue:
     """Queue for managing sync operations."""
@@ -42,35 +46,30 @@ class SyncQueue:
             logger.warning("Sync queue full, dropping event")
             return False
 
-    async def process_queue(
-        self, 
-        handler: Callable[[SyncEvent], Any]
-    ) -> None:
+    async def process_queue(self, handler: Callable[[SyncEvent], Any]) -> None:
         """Process queued events."""
         while True:
             try:
                 event = await asyncio.wait_for(self.queue.get(), timeout=1.0)
                 event.status = SyncStatus.IN_PROGRESS
-                
+
                 await handler(event)
-                
+
                 event.status = SyncStatus.SUCCESS
                 self.processed_count += 1
-                
+
             except asyncio.TimeoutError:
                 await asyncio.sleep(0.1)
             except Exception as e:
                 logger.error(f"Error processing sync event: {e}")
                 self.failed_count += 1
 
+
 class ConflictResolver:
     """Resolve conflicts in distributed sync."""
 
     @staticmethod
-    def resolve_timestamp_conflict(
-        local_time: datetime, 
-        remote_time: datetime
-    ) -> str:
+    def resolve_timestamp_conflict(local_time: datetime, remote_time: datetime) -> str:
         """Resolve conflict using timestamps."""
         return "local" if local_time > remote_time else "remote"
 

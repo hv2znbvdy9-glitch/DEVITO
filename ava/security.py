@@ -4,7 +4,6 @@ Nur Devito hat Zugriff. Alle anderen werden blockiert & geloggt.
 """
 
 import hashlib
-import secrets
 import time
 import logging
 from datetime import datetime, timedelta
@@ -33,7 +32,7 @@ ADMIN_API_KEYS = {
         "permissions": ["*"],  # All permissions
         "created": datetime.now().isoformat(),
         "expires": None,  # Never expires
-        "active": True
+        "active": True,
     }
 }
 
@@ -41,11 +40,13 @@ ADMIN_API_KEYS = {
 # SECURITY SETTINGS
 # ============================================================================
 
+
 class SecurityLevel(str, Enum):
     PUBLIC = "public"
     AUTHENTICATED = "authenticated"
     ADMIN_ONLY = "admin_only"
     OWNER_ONLY = "owner_only"
+
 
 class ThreatLevel(str, Enum):
     INFO = "info"
@@ -53,26 +54,30 @@ class ThreatLevel(str, Enum):
     CRITICAL = "critical"
     BLOCKED = "blocked"
 
+
 # ============================================================================
 # THREAT DETECTION & LOGGING
 # ============================================================================
 
+
 class ThreatLog:
     """Protokolliert alle Zugriffversuche und verdächtige Aktivitäten"""
-    
+
     def __init__(self):
         self.threats: List[Dict] = []
         self.blocked_ips: Dict[str, datetime] = {}
         self.failed_attempts: Dict[str, int] = {}
-        
-    def log_threat(self, 
-                   ip: str, 
-                   endpoint: str, 
-                   threat_level: ThreatLevel,
-                   reason: str,
-                   user_agent: Optional[str] = None):
+
+    def log_threat(
+        self,
+        ip: str,
+        endpoint: str,
+        threat_level: ThreatLevel,
+        reason: str,
+        user_agent: Optional[str] = None,
+    ):
         """Protokolliere verdächtige Aktivität"""
-        
+
         timestamp = datetime.now()
         threat_record = {
             "timestamp": timestamp.isoformat(),
@@ -80,21 +85,21 @@ class ThreatLog:
             "endpoint": endpoint,
             "threat_level": threat_level,
             "reason": reason,
-            "user_agent": user_agent
+            "user_agent": user_agent,
         }
-        
+
         self.threats.append(threat_record)
         logger.warning(f"🚨 THREAT DETECTED: {ip} - {reason}")
-        
+
         # Bei kritischen Angriffen: IP blockieren
         if threat_level == ThreatLevel.CRITICAL or threat_level == ThreatLevel.BLOCKED:
             self.block_ip(ip, duration_minutes=1440)  # 24 Stunden Blockierung
-            
+
     def block_ip(self, ip: str, duration_minutes: int = 60):
         """Blockiere eine IP-Adresse"""
         self.blocked_ips[ip] = datetime.now() + timedelta(minutes=duration_minutes)
         logger.critical(f"🔒 IP BLOCKED: {ip} für {duration_minutes} Minuten")
-        
+
     def is_ip_blocked(self, ip: str) -> bool:
         """Prüfe ob IP blockiert ist"""
         if ip in self.blocked_ips:
@@ -104,14 +109,15 @@ class ThreatLog:
                 del self.blocked_ips[ip]
                 logger.info(f"✅ IP-Block aufgehoben: {ip}")
         return False
-    
+
     def get_threat_report(self) -> Dict:
         """Gibt Sicherheitsbericht zurück"""
         return {
             "total_threats": len(self.threats),
             "blocked_ips": len(self.blocked_ips),
-            "recent_threats": self.threats[-10:] if self.threats else []
+            "recent_threats": self.threats[-10:] if self.threats else [],
         }
+
 
 # Global threat tracking
 threat_log = ThreatLog()
@@ -120,50 +126,46 @@ threat_log = ThreatLog()
 # AUTHENTIFIZIERUNG & VALIDIERUNG
 # ============================================================================
 
+
 class SecurityValidator:
     """Validiert alle Zugriffe"""
-    
+
     @staticmethod
     def validate_api_key(api_key: Optional[str]) -> Dict:
         """Validiere API-Key"""
         if not api_key:
             raise HTTPException(status_code=401, detail="API Key erforderlich")
-        
+
         if api_key not in ADMIN_API_KEYS:
             raise HTTPException(status_code=403, detail="Ungültiger API Key")
-        
+
         key_data = ADMIN_API_KEYS[api_key]
-        
+
         if not key_data["active"]:
             raise HTTPException(status_code=403, detail="API Key deaktiviert")
-        
+
         if key_data["expires"] and datetime.fromisoformat(key_data["expires"]) < datetime.now():
             raise HTTPException(status_code=403, detail="API Key abgelaufen")
-        
+
         return key_data
-    
+
     @staticmethod
     def validate_owner_password(password: str) -> bool:
         """Validiere Owner-Passwort"""
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         return password_hash == OWNER_PASSWORD_HASH
-    
+
     @staticmethod
     def check_admin_access(request: Optional[Request], api_key: Optional[str] = Header(None)):
         """Prüfe Admin-Zugriff"""
         client_ip = request.client.host if request and request.client else "unknown"
         endpoint = str(request.url) if request else "unknown"
-        
+
         # Prüfe ob IP blockiert ist
         if threat_log.is_ip_blocked(client_ip):
-            threat_log.log_threat(
-                client_ip,
-                endpoint,
-                ThreatLevel.BLOCKED,
-                "IP ist blockiert"
-            )
+            threat_log.log_threat(client_ip, endpoint, ThreatLevel.BLOCKED, "IP ist blockiert")
             raise HTTPException(status_code=403, detail="Zugriff verweigert")
-        
+
         # Prüfe API-Key
         try:
             key_data = SecurityValidator.validate_api_key(api_key)
@@ -175,39 +177,42 @@ class SecurityValidator:
                 endpoint,
                 ThreatLevel.CRITICAL,
                 f"Unauthorized access attempt: {e.detail}",
-                request.headers.get("user-agent") if request else None
+                request.headers.get("user-agent") if request else None,
             )
             raise
+
 
 # ============================================================================
 # RATE LIMITING
 # ============================================================================
 
+
 class RateLimiter:
     """Verhindert Brute-Force-Attacken"""
-    
+
     def __init__(self, max_requests: int = 100, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests: Dict[str, List[float]] = {}
-    
+
     def is_allowed(self, client_id: str) -> bool:
         """Prüfe ob Request erlaubt ist"""
         now = time.time()
-        
+
         if client_id not in self.requests:
             self.requests[client_id] = []
-        
+
         # Entferne alte Requests außerhalb des Fensters
         self.requests[client_id] = [
-            req_time for req_time in self.requests[client_id]
+            req_time
+            for req_time in self.requests[client_id]
             if now - req_time < self.window_seconds
         ]
-        
+
         if len(self.requests[client_id]) >= self.max_requests:
             logger.warning(f"🚨 Rate limit exceeded for {client_id}")
             return False
-        
+
         self.requests[client_id].append(now)
         return True
 
@@ -218,6 +223,7 @@ class RateLimiter:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests = {}
+
 
 rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
 
@@ -249,5 +255,5 @@ __all__ = [
     "ADMIN_API_KEYS",
     "OWNER_USERNAME",
     "ThreatLevel",
-    "SecurityLevel"
+    "SecurityLevel",
 ]

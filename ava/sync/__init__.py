@@ -10,5 +10,5 @@ __all__ = [
     "ConflictResolver",
     "MultiInstanceSync",
     "SyncEventType",
-    "SyncCoordinator"
+    "SyncCoordinator",
 ]

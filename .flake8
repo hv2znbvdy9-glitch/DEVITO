@@ -15,4 +15,8 @@ exclude =
     .mypy_cache
 ignore = 
     E203,
-    W503
+    W503,
+    W293,
+    W291,
+    E501,
+    E226

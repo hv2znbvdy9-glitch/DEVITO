@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Integer, JSON, Text
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Integer, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.pool import NullPool, QueuePool
 import os
@@ -13,8 +13,9 @@ Base = declarative_base()
 
 class TaskModel(Base):
     """SQLAlchemy Task model with enhanced fields."""
+
     __tablename__ = "tasks"
-    
+
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False, index=True)
     description = Column(String, nullable=True)
@@ -31,14 +32,11 @@ class DatabasePool:
 
     def __init__(self, database_url: Optional[str] = None):
         """Initialize database pool.
-        
+
         Args:
             database_url: Database URL (uses env var or SQLite default)
         """
-        self.database_url = database_url or os.getenv(
-            'AVA_DATABASE_URL',
-            'sqlite:///ava.db'
-        )
+        self.database_url = database_url or os.getenv("AVA_DATABASE_URL", "sqlite:///ava.db")
         self.engine = None
         self.SessionLocal = None
         self._pool_size = 20
@@ -48,29 +46,21 @@ class DatabasePool:
         """Initialize database with connection pooling."""
         try:
             pool_config = {}
-            if self.database_url.startswith('postgresql'):
+            if self.database_url.startswith("postgresql"):
                 pool_config = {
-                    'poolclass': QueuePool,
-                    'pool_size': self._pool_size,
-                    'max_overflow': self._max_overflow,
-                    'pool_pre_ping': True,
-                    'pool_recycle': 3600
+                    "poolclass": QueuePool,
+                    "pool_size": self._pool_size,
+                    "max_overflow": self._max_overflow,
+                    "pool_pre_ping": True,
+                    "pool_recycle": 3600,
                 }
             else:
-                pool_config = {'poolclass': NullPool}
-            
-            self.engine = create_engine(
-                self.database_url,
-                echo=False,
-                **pool_config
-            )
-            
-            self.SessionLocal = sessionmaker(
-                autocommit=False,
-                autoflush=False,
-                bind=self.engine
-            )
-            
+                pool_config = {"poolclass": NullPool}
+
+            self.engine = create_engine(self.database_url, echo=False, **pool_config)
+
+            self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+
             Base.metadata.create_all(bind=self.engine)
             logger.info(f"Database initialized: {self.database_url}")
         except Exception as e:
@@ -96,7 +86,7 @@ class DatabasePool:
                 task_metadata=task.get("metadata"),
                 instance_id=instance_id,
                 created_at=task.get("created_at", datetime.now()),
-                updated_at=datetime.now()
+                updated_at=datetime.now(),
             )
             session.add(db_task)
             session.commit()
@@ -113,10 +103,10 @@ class DatabasePool:
             session = self.get_session()
             db_task = session.query(TaskModel).filter(TaskModel.id == task_id).first()
             session.close()
-            
+
             if not db_task:
                 return None
-            
+
             return {
                 "id": db_task.id,
                 "name": db_task.name,
@@ -126,7 +116,7 @@ class DatabasePool:
                 "metadata": db_task.task_metadata,
                 "created_at": db_task.created_at,
                 "updated_at": db_task.updated_at,
-                "instance_id": db_task.instance_id
+                "instance_id": db_task.instance_id,
             }
         except Exception as e:
             logger.error(f"Error getting task: {e}")
@@ -138,7 +128,7 @@ class DatabasePool:
             session = self.get_session()
             db_tasks = session.query(TaskModel).offset(offset).limit(limit).all()
             session.close()
-            
+
             return [
                 {
                     "id": t.id,
@@ -147,7 +137,7 @@ class DatabasePool:
                     "completed": t.completed,
                     "priority": t.priority,
                     "created_at": t.created_at,
-                    "instance_id": t.instance_id
+                    "instance_id": t.instance_id,
                 }
                 for t in db_tasks
             ]
@@ -160,14 +150,14 @@ class DatabasePool:
         try:
             session = self.get_session()
             db_task = session.query(TaskModel).filter(TaskModel.id == task_id).first()
-            
+
             if not db_task:
                 return False
-            
+
             for key, value in updates.items():
                 if hasattr(db_task, key):
                     setattr(db_task, key, value)
-            
+
             db_task.updated_at = datetime.now()
             session.commit()
             session.close()
@@ -195,14 +185,14 @@ class DatabasePool:
         try:
             session = self.get_session()
             total = session.query(TaskModel).count()
-            completed = session.query(TaskModel).filter(TaskModel.completed == True).count()
+            completed = session.query(TaskModel).filter(TaskModel.completed.is_(True)).count()
             session.close()
-            
+
             return {
                 "total_tasks": total,
                 "completed_tasks": completed,
                 "pending_tasks": total - completed,
-                "completion_rate": (completed / total * 100) if total > 0 else 0
+                "completion_rate": (completed / total * 100) if total > 0 else 0,
             }
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
