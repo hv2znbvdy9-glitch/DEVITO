@@ -284,11 +284,12 @@ h1 { color: #00ffcc; border-bottom: 2px solid #00ffcc; padding-bottom: 10px; }
 "@
 
     $body = foreach ($a in $items) {
-        $sev = [string]$a.severity
+        $rawSev = [string]$a.severity
+        $sevCls = if ($rawSev -in @('LOW','MEDIUM','HIGH','CRITICAL')) { $rawSev } else { 'LOW' }
         $msg = [System.Net.WebUtility]::HtmlEncode([string]$a.message)
         $tim = [System.Net.WebUtility]::HtmlEncode([string]$a.time)
 
-        "<div class='card $sev'><span class='time'>$tim [$sev]</span><span class='msg'>$msg</span></div>"
+        "<div class='card $sevCls'><span class='time'>$tim [$sevCls]</span><span class='msg'>$msg</span></div>"
     }
 
     $html = "<html><head>$style</head><body><h1>AVA SECURITY DASHBOARD</h1>$($body -join '')</body></html>"
