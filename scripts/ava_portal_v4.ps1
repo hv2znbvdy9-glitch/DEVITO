@@ -216,16 +216,18 @@ function Build-Portal {
     $risk = Get-Risk -Alerts $Alerts
 
     $alertRows = foreach ($a in ($Alerts | Sort-Object score -Descending | Select-Object -First 25)) {
-        $sevCls = "$(Html $a.severity)".ToLower()
+        # Sanitise severity to alphanumeric-only for use in CSS class names
+        $sevCls = ([string]$a.severity -replace '[^a-zA-Z0-9]', '').ToLower()
         $score  = 0; try { $score = [int]$a.score } catch {}
-        "<tr class='row-$sevCls'><td>$(Html $a.time)</td><td><span class='badge badge-$(Html $a.severity)'>$(Html $a.severity)</span></td><td>$score</td><td>$(Html $a.title)</td><td>$(Html $a.reason)</td></tr>"
+        "<tr class='row-$sevCls'><td>$(Html $a.time)</td><td><span class='badge badge-$(Html $a.severity)'>$(Html $a.severity)</span></td><td>$(Html $score)</td><td>$(Html $a.title)</td><td>$(Html $a.reason)</td></tr>"
     }
 
     $eventRows = foreach ($e in ($Events | Select-Object -Last 40)) {
         "<tr><td>$(Html $e.time)</td><td>$(Html $e.severity)</td><td>$(Html $e.type)</td><td>$(Html $e.summary)</td></tr>"
     }
 
-    $graphData   = $Graph | ConvertTo-Json -Depth 20 -Compress
+    # Escape '</' to prevent premature </script> tag close when embedded in HTML
+    $graphData   = ($Graph | ConvertTo-Json -Depth 20 -Compress) -replace '</', '<\/'
     $generatedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 
     $riskColor = switch ($risk.Level) {
