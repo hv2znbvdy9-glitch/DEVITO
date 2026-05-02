@@ -14,17 +14,11 @@ Getestet für Windows 10/11 PowerShell 5.1+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# ------------------------------------------------------------
-# KONFIG
-# ------------------------------------------------------------
 $Now        = Get-Date -Format "yyyyMMdd_HHmmss"
 $ReportDir  = Join-Path ([Environment]::GetFolderPath("Desktop")) "AVA_AUDIT_REPORT_$Now"
 $JsonReport = Join-Path $ReportDir "report.json"
 $TxtReport  = Join-Path $ReportDir "report.txt"
 
-# ------------------------------------------------------------
-# HILFSFUNKTIONEN
-# ------------------------------------------------------------
 function Ensure-Dir {
     param(
         [Parameter(Mandatory)]
@@ -42,7 +36,6 @@ function Write-Section {
         [string]$Title,
 
         [Parameter(Mandatory)]
-        [AllowNull()]
         [object]$Data
     )
 
@@ -118,9 +111,6 @@ function Safe-Run {
     }
 }
 
-# ------------------------------------------------------------
-# START
-# ------------------------------------------------------------
 Ensure-Dir -Path $ReportDir
 $Results = @()
 
@@ -177,7 +167,7 @@ Safe-Run -Title "FirewallRules_AVA_Block" -ScriptBlock {
         Where-Object { $_.DisplayName -like 'AVA_Block_*' } |
         Select-Object DisplayName, Direction, Action, Enabled, Profile
 
-    if ($null -eq $rules -or @($rules).Count -eq 0) {
+    if ($null -eq $rules -or $rules.Count -eq 0) {
         "Keine AVA_Block_-Regeln gefunden"
     }
     else {
@@ -275,9 +265,6 @@ Safe-Run -Title "Summary" -ScriptBlock {
     }
 }
 
-# ------------------------------------------------------------
-# REPORTING
-# ------------------------------------------------------------
 $computer = $env:COMPUTERNAME
 $userName = "$env:USERDOMAIN\$env:USERNAME"
 
@@ -324,9 +311,6 @@ foreach ($entry in $Results) {
 
 $txt -join "`r`n" | Set-Content -Path $TxtReport -Encoding UTF8
 
-# ------------------------------------------------------------
-# ABSCHLUSS
-# ------------------------------------------------------------
 Write-Host ""
 Write-Host "AVA AUDIT ONLY abgeschlossen." -ForegroundColor Green
 Write-Host "Es wurden keine Systemänderungen vorgenommen." -ForegroundColor Green
