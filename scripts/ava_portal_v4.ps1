@@ -216,10 +216,12 @@ function Build-Portal {
     $risk = Get-Risk -Alerts $Alerts
 
     $alertRows = foreach ($a in ($Alerts | Sort-Object score -Descending | Select-Object -First 25)) {
-        # Sanitise severity to alphanumeric-only for use in CSS class names
-        $sevCls = ([string]$a.severity -replace '[^a-zA-Z0-9]', '').ToLower()
-        $score  = 0; try { $score = [int]$a.score } catch {}
-        "<tr class='row-$sevCls'><td>$(Html $a.time)</td><td><span class='badge badge-$(Html $a.severity)'>$(Html $a.severity)</span></td><td>$(Html $score)</td><td>$(Html $a.title)</td><td>$(Html $a.reason)</td></tr>"
+        # Sanitise severity to alphanumeric-only before inserting into CSS class attributes
+        $sevSafe  = [string]$a.severity -replace '[^a-zA-Z0-9]', ''
+        $sevCls   = $sevSafe.ToLower()   # used for row highlighting:  row-critical
+        $sevBadge = $sevSafe.ToUpper()   # used for badge colouring:   badge-CRITICAL
+        $score    = 0; try { $score = [int]$a.score } catch {}
+        "<tr class='row-$sevCls'><td>$(Html $a.time)</td><td><span class='badge badge-$sevBadge'>$(Html $a.severity)</span></td><td>$(Html $score)</td><td>$(Html $a.title)</td><td>$(Html $a.reason)</td></tr>"
     }
 
     $eventRows = foreach ($e in ($Events | Select-Object -Last 40)) {
