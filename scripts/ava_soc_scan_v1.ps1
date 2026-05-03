@@ -37,7 +37,26 @@ $TxtReport  = Join-Path $ReportDir "ava_soc_scan_report_$Now.txt"
 $HtmlReport = Join-Path $ReportDir "ava_soc_scan_report_$Now.html"
 $AlertLog   = Join-Path $LogDir 'scan_alerts.jsonl'
 
-$HighRiskPorts = @(21, 23, 135, 139, 445, 3389, 4444, 5555, 5900, 5985, 5986, 8080, 8443, 9001, 1337)
+$HighRiskPorts = @(
+    21,    # FTP
+    23,    # Telnet
+    135,   # MS RPC
+    139,   # NetBIOS
+    445,   # SMB
+    3389,  # RDP
+    4444,  # Metasploit default
+    5555,  # Android ADB / RAT
+    5900,  # VNC
+    5985,  # WinRM HTTP
+    5986,  # WinRM HTTPS
+    8080,  # HTTP Alt
+    8443,  # HTTPS Alt
+    9001,  # Tor / custom C2
+    1337   # Common RAT/backdoor
+)
+
+# Minimum connections from a single remote address to trigger a flood/scan alert
+$FloodDetectionThreshold = 30
 
 $SuspiciousPSFlags = @(
     '-enc',
@@ -143,7 +162,7 @@ try {
     Add-Finding -Title 'Top Remote-Adressen nach Verbindungsanzahl' -Severity 'INFO' -Score 0 -Details $TopRemote
 
     foreach ($g in $GroupedRemote) {
-        if ($g.Count -ge 30) {
+        if ($g.Count -ge $FloodDetectionThreshold) {
             Add-Finding -Title 'Mögliches Scan-/Flood-Muster erkannt' -Severity 'HIGH' -Score 80 -Details @{
                 RemoteAddress   = $g.Name
                 ConnectionCount = $g.Count
@@ -345,7 +364,7 @@ $Html = @"
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 16px; }
     thead tr { background: #1f2937; }
     th { padding: 10px 12px; text-align: left; color: #9ca3af; font-weight: 600; border-bottom: 1px solid #374151; }
-    td { padding: 8px 12px; border-bottom: 1px solid #1f2937; word-break: break-all; vertical-align: top; }
+    td { padding: 8px 12px; border-bottom: 1px solid #1f2937; overflow-wrap: break-word; vertical-align: top; }
     tbody tr:hover { background: #1f2937; }
     .sev-critical td { background: #2d1515; color: #fca5a5; }
     .sev-high     td { background: #2d1f0f; color: #fdba74; }
