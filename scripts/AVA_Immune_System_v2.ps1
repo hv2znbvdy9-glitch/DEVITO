@@ -134,7 +134,7 @@ function Test-PrivateIPv4 {
     return $false
 }
 
-function Safe-BlockRemoteIP {
+function Invoke-RemoteIPBlock {
     param([string]$RemoteIP, [string]$Reason)
 
     if (-not $AutoBlock) {
@@ -185,7 +185,7 @@ function Safe-BlockRemoteIP {
     Add-Finding -Title "Remote-IP automatisch geblockt" -Severity "HIGH" -Score 85 -Details $blockEntry
 }
 
-function Rollback-AVA-Blocks {
+function Remove-AvaFirewallBlocks {
     $rules = Get-NetFirewallRule -DisplayName "$RulePrefix*" -ErrorAction SilentlyContinue
     if (-not $rules) {
         Write-Host "Keine AVA Immune Firewall-Regeln gefunden." -ForegroundColor Yellow
@@ -223,7 +223,7 @@ function Remove-GuardianTask {
 # CONTROL ACTIONS
 # =========================
 if ($RollbackBlocks) {
-    Rollback-AVA-Blocks
+    Remove-AvaFirewallBlocks
     return
 }
 
@@ -310,7 +310,7 @@ try {
                 Reason = "Viele TCP-Verbindungen von einer Quelle"
             }
 
-            Safe-BlockRemoteIP -RemoteIP $g.Name -Reason "Viele TCP-Verbindungen von einer Quelle"
+    Invoke-RemoteIPBlock -RemoteIP $g.Name -Reason "Viele TCP-Verbindungen von einer Quelle"
         }
     }
 } catch {
@@ -419,9 +419,13 @@ try {
     } else {
         $old = Get-Content -LiteralPath $Baseline -Raw | ConvertFrom-Json
 
-        $newAdmins = @($currentBaseline.Admins | Where-Object { $old.Admins -notcontains $_ })
-        $newPorts  = @($currentBaseline.ListeningPorts | Where-Object { $old.ListeningPorts -notcontains $_ })
-        $newTasks  = @($currentBaseline.NonMicrosoftTasks | Where-Object { $old.NonMicrosoftTasks -notcontains $_ })
+        $oldAdmins    = if ($null -ne $old.Admins)             { @($old.Admins) }             else { @() }
+        $oldPorts     = if ($null -ne $old.ListeningPorts)     { @($old.ListeningPorts) }     else { @() }
+        $oldTasks     = if ($null -ne $old.NonMicrosoftTasks)  { @($old.NonMicrosoftTasks) }  else { @() }
+
+        $newAdmins = @($currentBaseline.Admins | Where-Object { $oldAdmins -notcontains $_ })
+        $newPorts  = @($currentBaseline.ListeningPorts | Where-Object { $oldPorts -notcontains $_ })
+        $newTasks  = @($currentBaseline.NonMicrosoftTasks | Where-Object { $oldTasks -notcontains $_ })
 
         if ($newAdmins.Count -gt 0) {
             Add-Finding -Title "Baseline Änderung: neue Administratoren" -Severity "CRITICAL" -Score 100 -Details $newAdmins
