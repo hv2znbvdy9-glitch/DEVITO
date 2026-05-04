@@ -53,6 +53,7 @@ $TxtReport   = Join-Path $ReportDir "ava_immune_report_$Now.txt"
 $HtmlReport  = Join-Path $ReportDir "ava_immune_report_$Now.html"
 
 $HighRiskPorts = @(21,23,135,139,445,3389,4444,5555,5900,5985,5986,8080,8443,9001,1337)
+$SuspiciousConnectionThreshold = 40
 $NeverBlockIPs = @(
     "127.0.0.1",
     "::1",
@@ -118,12 +119,12 @@ function Add-Finding {
     }
 }
 
-function HtmlEncode {
+function ConvertTo-HtmlEncoded {
     param([object]$Value)
     return [System.Net.WebUtility]::HtmlEncode(($Value | Out-String))
 }
 
-function Is-PrivateIPv4 {
+function Test-PrivateIPv4 {
     param([string]$IP)
 
     if ($IP -match "^10\.") { return $true }
@@ -147,7 +148,7 @@ function Safe-BlockRemoteIP {
 
     if (-not $RemoteIP) { return }
     if ($NeverBlockIPs -contains $RemoteIP) { return }
-    if (Is-PrivateIPv4 $RemoteIP) {
+    if (Test-PrivateIPv4 $RemoteIP) {
         Add-Finding -Title "AutoBlock übersprungen: private/lokale IP" -Severity "INFO" -Score 0 -Details @{
             RemoteIP = $RemoteIP
             Reason   = "Private IP wird nicht automatisch blockiert"
@@ -246,6 +247,10 @@ Add-Finding -Title "AVA IMMUNE SYSTEM v2 gestartet" -Severity "INFO" -Score 0 -D
     AutoBlock = [bool]$AutoBlock
 }
 
+$admins      = @()
+$connections = @()
+$tasks       = @()
+
 # Firewall
 try {
     $fw = Get-NetFirewallProfile | Select-Object Name,Enabled,DefaultInboundAction,DefaultOutboundAction
@@ -273,7 +278,6 @@ try {
 }
 
 # TCP Connections
-$connections = @()
 try {
     $connections = Get-NetTCPConnection -ErrorAction SilentlyContinue |
         Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess
@@ -299,7 +303,7 @@ try {
     Add-Finding -Title "Top Remote IPs" -Severity "INFO" -Score 0 -Details ($remoteGroups | Select-Object -First 10 Name,Count)
 
     foreach ($g in $remoteGroups) {
-        if ($g.Count -ge 40) {
+        if ($g.Count -ge $SuspiciousConnectionThreshold) {
             Add-Finding -Title "Mögliches Scan-/Flood-Muster" -Severity "HIGH" -Score 85 -Details @{
                 RemoteIP = $g.Name
                 Connections = $g.Count
@@ -506,7 +510,7 @@ $txt -join "`r`n" | Out-File -FilePath $TxtReport -Encoding UTF8
 # HTML
 $rows = foreach ($f in $Findings) {
     $cls = $f.Severity.ToLowerInvariant()
-    "<tr class='$cls'><td>$($f.Time)</td><td>$($f.Severity)</td><td>$($f.Score)</td><td>$(HtmlEncode $f.Title)</td><td><pre>$(HtmlEncode $f.Details)</pre></td></tr>"
+    "<tr class='$cls'><td>$($f.Time)</td><td>$($f.Severity)</td><td>$($f.Score)</td><td>$(ConvertTo-HtmlEncoded $f.Title)</td><td><pre>$(ConvertTo-HtmlEncoded $f.Details)</pre></td></tr>"
 }
 
 $html = @"
