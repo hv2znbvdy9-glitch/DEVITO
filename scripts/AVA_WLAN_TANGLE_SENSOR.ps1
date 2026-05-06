@@ -76,7 +76,7 @@ function Write-EventEntry {
         [string]$Severity = 'INFO'
     )
     Write-JsonLine -Object @{
-        time     = (Get-Date).ToString('s')
+        time     = (Get-Date).ToString('o')
         category = $Category
         severity = $Severity
         message  = $Message
@@ -109,7 +109,8 @@ function Write-Tangle {
         catch { $prevHash = $null }
     }
 
-    $entry = [ordered]@{
+    # Build entry without hash field first, hash it, then append hash
+    $entryContent = [ordered]@{
         time          = (Get-Date).ToString('o')
         host          = $env:COMPUTERNAME
         user          = $env:USERNAME
@@ -117,12 +118,15 @@ function Write-Tangle {
         summary       = $Summary
         previous_hash = $prevHash
         data          = $Data
-        hash          = ''
     }
 
-    $raw         = $entry | ConvertTo-Json -Compress -Depth 8
-    $hash        = Get-Sha256Text -Text $raw
-    $entry.hash  = $hash
+    $raw  = $entryContent | ConvertTo-Json -Compress -Depth 8
+    $hash = Get-Sha256Text -Text $raw
+
+    # Compose the final logged entry with the computed hash appended
+    $entry = [ordered]@{}
+    foreach ($k in $entryContent.Keys) { $entry[$k] = $entryContent[$k] }
+    $entry['hash'] = $hash
 
     Write-JsonLine -Object $entry -Path $TangleLog
 
