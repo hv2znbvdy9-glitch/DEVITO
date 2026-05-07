@@ -25,10 +25,10 @@ $MaxAdminsThreshold = 3
 $SuspiciousPowerShellPatterns = @(
     '(?<!\S)-enc(?!\S)',
     '(?<!\S)-encodedcommand(?!\S)',
-    '(?<!\S)-executionpolicy\s+bypass(?!\S)',
-    '(?<!\S)-ep\s+bypass(?!\S)',
+    '(?<!\S)-executionpolicy\s+bypass(?=\s|$)',
+    '(?<!\S)-ep\s+bypass(?=\s|$)',
     '(?<!\S)-nop(?!\S)',
-    '(?<!\S)-windowstyle\s+hidden(?!\S)',
+    '(?<!\S)-windowstyle\s+hidden(?=\s|$)',
     '\binvoke-expression\b',
     '\biex\b',
     '\bdownloadstring\b'
@@ -246,7 +246,7 @@ try {
     }
 
     $procCount = @($procs | Where-Object { $_.ProcessId -ne $PID }).Count
-    if ($procCount -le 1) {
+    if ($procCount -eq 0) {
         Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine zusätzlichen laufenden PowerShell-Prozesse erkannt' 'Gut.'
     }
     elseif (-not $hasSuspiciousPowerShellProcess) {
