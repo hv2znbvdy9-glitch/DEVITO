@@ -22,7 +22,17 @@ $ReportTxt  = Join-Path $OutDir 'ava_community_security_report.txt'
 $ReportJson = Join-Path $OutDir 'ava_community_security_report.json'
 
 $MaxAdminsThreshold = 3
-$SuspiciousPowerShellFlags = @('-enc', 'encodedcommand', 'bypass', 'downloadstring', 'iex', 'invoke-expression', '-nop', 'hidden')
+$SuspiciousPowerShellPatterns = @(
+    '(?<!\S)-enc(?!\S)',
+    '(?<!\S)-encodedcommand(?!\S)',
+    '(?<!\S)-executionpolicy\s+bypass(?!\S)',
+    '(?<!\S)-ep\s+bypass(?!\S)',
+    '(?<!\S)-nop(?!\S)',
+    '(?<!\S)-windowstyle\s+hidden(?!\S)',
+    '\binvoke-expression\b',
+    '\biex\b',
+    '\bdownloadstring\b'
+)
 $RiskyRemotePorts = @(
     21,   # FTP
     23,   # Telnet
@@ -193,7 +203,7 @@ try {
         if (Test-Path $path) {
             $items = Get-ItemProperty $path
             $props = $items.PSObject.Properties | Where-Object {
-                $_.Name -notmatch '^PS'
+                $_.Name -notin @('PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider')
             }
 
             foreach ($prop in $props) {
@@ -217,12 +227,14 @@ try {
     }
 
     foreach ($p in $procs) {
+        if ($null -eq $p.CommandLine) { continue }
+
         $cmd = "$($p.CommandLine)"
         $lower = $cmd.ToLowerInvariant()
         $hits = @()
 
-        foreach ($f in $SuspiciousPowerShellFlags) {
-            if ($lower.Contains($f)) { $hits += $f }
+        foreach ($pattern in $SuspiciousPowerShellPatterns) {
+            if ($lower -match $pattern) { $hits += $pattern }
         }
 
         if ($hits.Count -gt 0) {
@@ -234,6 +246,9 @@ try {
 
     if (-not $procs) {
         Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine laufenden PowerShell-Prozesse gefunden' 'Gut.'
+    }
+    elseif (-not ($Results | Where-Object { $_.Category -eq 'Prozesse' -and $_.Title -eq 'Auffälliger PowerShell Prozess' })) {
+        Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine auffälligen PowerShell-Argumente erkannt' 'Gut.'
     }
 }
 catch {
@@ -266,7 +281,10 @@ catch {
 # WINDOWS UPDATE HINWEIS
 # =========================
 try {
-    $hotfixes = Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5
+    $hotfixes = Get-HotFix |
+        Where-Object { $null -ne $_.InstalledOn } |
+        Sort-Object InstalledOn -Descending |
+        Select-Object -First 5
     foreach ($h in $hotfixes) {
         Add-Result 'Updates' 'INFO' 'Installiertes Update' `
             "$($h.HotFixID) | Installiert am: $($h.InstalledOn)" `
