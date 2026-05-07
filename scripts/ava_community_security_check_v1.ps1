@@ -45,6 +45,7 @@ $RiskyRemotePorts = @(
 )
 $CriticalPenalty = 25
 $WarnPenalty = 7
+$MaxHotfixesToDisplay = 5
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
@@ -222,9 +223,8 @@ catch {
 # AUFFÄLLIGE POWERSHELL PROZESSE
 # =========================
 try {
-    $procs = Get-CimInstance Win32_Process | Where-Object {
-        $_.Name -in @('powershell.exe', 'pwsh.exe')
-    }
+    $procs = Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'"
+    $hasSuspiciousPowerShellProcess = $false
 
     foreach ($p in $procs) {
         if ($null -eq $p.CommandLine) { continue }
@@ -238,17 +238,18 @@ try {
         }
 
         if ($hits.Count -gt 0) {
+            $hasSuspiciousPowerShellProcess = $true
             Add-Result 'Prozesse' 'WARN' 'Auffälliger PowerShell Prozess' `
                 "PID $($p.ProcessId) | Treffer: $($hits -join ', ') | $cmd" `
                 'Prüfen, ob dieser Prozess zu einem legitimen Admin-/Updatevorgang gehört.'
         }
     }
 
-    $procCount = @($procs).Count
+    $procCount = @($procs | Where-Object { $_.ProcessId -ne $PID }).Count
     if ($procCount -le 1) {
         Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine zusätzlichen laufenden PowerShell-Prozesse erkannt' 'Gut.'
     }
-    elseif (-not ($Results | Where-Object { $_.Category -eq 'Prozesse' -and $_.Title -eq 'Auffälliger PowerShell Prozess' })) {
+    elseif (-not $hasSuspiciousPowerShellProcess) {
         Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine auffälligen PowerShell-Argumente erkannt' 'Gut.'
     }
 }
@@ -285,7 +286,7 @@ try {
     $hotfixes = Get-HotFix |
         Where-Object { $null -ne $_.InstalledOn } |
         Sort-Object InstalledOn -Descending |
-        Select-Object -First 5
+        Select-Object -First $MaxHotfixesToDisplay
     foreach ($h in $hotfixes) {
         Add-Result 'Updates' 'INFO' 'Installiertes Update' `
             "$($h.HotFixID) | Installiert am: $($h.InstalledOn)" `
