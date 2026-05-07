@@ -244,8 +244,9 @@ try {
         }
     }
 
-    if (-not $procs) {
-        Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine laufenden PowerShell-Prozesse gefunden' 'Gut.'
+    $procCount = @($procs).Count
+    if ($procCount -le 1) {
+        Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine zusätzlichen laufenden PowerShell-Prozesse erkannt' 'Gut.'
     }
     elseif (-not ($Results | Where-Object { $_.Category -eq 'Prozesse' -and $_.Title -eq 'Auffälliger PowerShell Prozess' })) {
         Add-Result 'Prozesse' 'OK' 'PowerShell Prozesse' 'Keine auffälligen PowerShell-Argumente erkannt' 'Gut.'
