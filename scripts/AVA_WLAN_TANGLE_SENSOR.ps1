@@ -238,14 +238,14 @@ function Get-LocalNetworkSnapshot {
         $ipConfig = @(@{ Error = $_.Exception.Message })
     }
 
-    $neighbours = @()
+    $neighbors = @()
     try {
-        $neighbours = @(Get-NetNeighbor -ErrorAction SilentlyContinue |
+        $neighbors = @(Get-NetNeighbor -ErrorAction SilentlyContinue |
             Where-Object { $_.State -ne 'Unreachable' } |
             Select-Object -Property IPAddress, LinkLayerAddress, State, InterfaceAlias)
     }
     catch {
-        $neighbours = @(@{ Error = $_.Exception.Message })
+        $neighbors = @(@{ Error = $_.Exception.Message })
     }
 
     [ordered]@{
@@ -254,8 +254,7 @@ function Get-LocalNetworkSnapshot {
         user       = $env:USERNAME
         adapters   = $adapters
         ipconfig   = $ipConfig
-        neighbors  = $neighbours
-        neighbours = $neighbours
+        neighbors  = $neighbors
     }
 }
 
@@ -304,7 +303,7 @@ function Build-HtmlPortal {
     }
 
     # Neighbour rows
-    $neighbourRows = foreach ($nb in $LocalSnapshot.neighbours) {
+    $neighbourRows = foreach ($nb in $LocalSnapshot.neighbors) {
         if ($nb -is [hashtable] -and $nb.ContainsKey('Error')) {
             "<tr><td colspan='4' style='color:#9ca3af;font-style:italic'>$([System.Net.WebUtility]::HtmlEncode($nb.Error))</td></tr>"
             continue
@@ -361,7 +360,7 @@ function Build-HtmlPortal {
     <div class="stat-label">Active Adapters</div>
   </div>
   <div class="stat-card">
-    <div class="stat-number">$($LocalSnapshot.neighbours.Count)</div>
+    <div class="stat-number">$($LocalSnapshot.neighbors.Count)</div>
     <div class="stat-label">ARP Neighbours</div>
   </div>
 </div>
@@ -453,7 +452,7 @@ function Invoke-SensorCycle {
     $localSnapshot = Get-LocalNetworkSnapshot
 
     $wlanCount     = $wlanNetworks.Count
-    $summary       = "WLANs=$wlanCount adapters=$($localSnapshot.adapters.Count) neighbours=$($localSnapshot.neighbours.Count)"
+    $summary       = "WLANs=$wlanCount adapters=$($localSnapshot.adapters.Count) neighbours=$($localSnapshot.neighbors.Count)"
 
     Write-EventEntry -Category 'wlan_scan' -Message $summary
 
