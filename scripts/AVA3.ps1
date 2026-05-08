@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA v3 - AUDIT ONLY (Read-Only / Local / Defensive)
 - Liest nur lokale Sicherheits-/Systeminformationen aus

@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA DEFENSE LAB + SOC SCAN INTEGRATION v1
 Lokal / Defensiv / Read-Only

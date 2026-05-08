@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA IMMUNE SYSTEM v2
 Lokal / Defensiv / SOC / Baseline / Risk Score / HTML Dashboard
@@ -222,6 +222,7 @@ function Remove-GuardianTask {
 # =========================
 # CONTROL ACTIONS
 # =========================
+$null = $RunOnce  # Switch accepted for scheduled-task invocation; no-op in single-run design
 if ($RollbackBlocks) {
     Remove-AvaFirewallBlocks
     return

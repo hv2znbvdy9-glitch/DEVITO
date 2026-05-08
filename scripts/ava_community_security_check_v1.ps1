@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 AVA COMMUNITY SECURITY CHECK v1
 Ehrenamtlich / Respektvoll / Gesellschaftlich wertvoll
@@ -98,7 +98,9 @@ try {
             'Sehr lange Laufzeiten können Updates blockieren. Gelegentlich sauber neu starten.'
     }
 }
-catch {}
+catch {
+    Write-Debug "Uptime not available: $($_.Exception.Message)"
+}
 
 # =========================
 # DEFENDER / ANTIVIRUS
@@ -168,13 +170,13 @@ try {
         Add-Result 'Remote Zugriff' 'OK' 'WinRM Dienst' 'WinRM läuft nicht' 'Für normale Clients meist sinnvoll.'
     }
 }
-catch {}
+catch {
+    Write-Debug "WinRM service not available: $($_.Exception.Message)"
+}
 
 # =========================
 # LOKALE ADMINISTRATOREN
 # =========================
-try {
-    $admins = Get-LocalGroupMember -Group 'Administrators' -ErrorAction Stop
     foreach ($a in $admins) {
         Add-Result 'Konten' 'INFO' 'Lokaler Administrator' `
             "$($a.Name) | $($a.ObjectClass)" `

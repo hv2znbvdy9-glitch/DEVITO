@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA PORTAL V4
 Defensiv / Lokal / Read-Only
@@ -187,7 +187,7 @@ function Get-Risk {
     foreach ($a in $Alerts) {
         try {
             if ([int]$a.score -gt $max) { $max = [int]$a.score }
-        } catch {}
+        } catch { Write-Debug "Score cast failed: $($_.Exception.Message)" }
     }
 
     $level = "OK"
@@ -220,7 +220,7 @@ function Build-Portal {
         $sevSafe  = [string]$a.severity -replace '[^a-zA-Z0-9]', ''
         $sevCls   = $sevSafe.ToLower()   # used for row highlighting:  row-critical
         $sevBadge = $sevSafe.ToUpper()   # used for badge colouring:   badge-CRITICAL
-        $score    = 0; try { $score = [int]$a.score } catch {}
+        $score    = 0; try { $score = [int]$a.score } catch { Write-Debug "Score cast failed: $($_.Exception.Message)" }
         "<tr class='row-$sevCls'><td>$(Html $a.time)</td><td><span class='badge badge-$sevBadge'>$(Html $a.severity)</span></td><td>$(Html $score)</td><td>$(Html $a.title)</td><td>$(Html $a.reason)</td></tr>"
     }
 
