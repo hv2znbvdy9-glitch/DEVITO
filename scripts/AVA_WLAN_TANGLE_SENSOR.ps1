@@ -6,7 +6,7 @@ AVA WLAN TANGLE SENSOR v1 - DEFENSIVE / LOCAL / READ-ONLY
 - LAN neighbours via Get-NetNeighbor (ARP cache)
 - JSONL event log  : C:\Windows\SecurityGuardian\Logs\wlan_events.jsonl
 - JSONL tangle log : C:\Windows\SecurityGuardian\Logs\wlan_tangle.jsonl
-- HTML portal      : C:\Windows\SecurityGuardian\Reports\ava_wlan.html
+- HTML portal      : C:\Windows\SecurityGuardian\Reports\ava_wlan_portal.html
 
 No attacks. No monitor mode. No deauth. No cracking.
 
@@ -42,7 +42,7 @@ $ReportDir  = Join-Path $Root   'Reports'
 $EventLog    = Join-Path $LogDir  'wlan_events.jsonl'
 $TangleLog   = Join-Path $LogDir  'wlan_tangle.jsonl'
 $TangleState = Join-Path $StateDir 'wlan_tangle_state.json'
-$PortalHtml  = Join-Path $ReportDir 'ava_wlan.html'
+$PortalHtml  = Join-Path $ReportDir 'ava_wlan_portal.html'
 
 $TaskName = 'AVA_WLAN_TANGLE_SENSOR_V1'
 
@@ -175,6 +175,7 @@ function Get-WlanNetworksSafe {
                 Encryption     = $currentEncr
                 Signal         = $null
                 RadioType      = $null
+                Channel        = $null
             }) | Out-Null
         }
         elseif ($l -match '^Signal\s*:\s+(.+)$') {
@@ -187,6 +188,12 @@ function Get-WlanNetworksSafe {
             if ($items.Count -gt 0) {
                 $items[$items.Count - 1] |
                     Add-Member -NotePropertyName RadioType -NotePropertyValue $Matches[1] -Force
+            }
+        }
+        elseif ($l -match '^Channel\s*:\s+(.+)$') {
+            if ($items.Count -gt 0) {
+                $items[$items.Count - 1] |
+                    Add-Member -NotePropertyName Channel -NotePropertyValue $Matches[1] -Force
             }
         }
     }
@@ -222,6 +229,15 @@ function Get-LocalNetworkSnapshot {
         $adapters = @(@{ Error = $_.Exception.Message })
     }
 
+    $ipConfig = @()
+    try {
+        $ipConfig = Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Select-Object InterfaceAlias, IPv4Address, IPv6Address, IPv4DefaultGateway, DNSServer
+    }
+    catch {
+        $ipConfig = @(@{ Error = $_.Exception.Message })
+    }
+
     $neighbours = @()
     try {
         $neighbours = @(Get-NetNeighbor -ErrorAction SilentlyContinue |
@@ -237,6 +253,8 @@ function Get-LocalNetworkSnapshot {
         computer   = $env:COMPUTERNAME
         user       = $env:USERNAME
         adapters   = $adapters
+        ipconfig   = $ipConfig
+        neighbors  = $neighbours
         neighbours = $neighbours
     }
 }
@@ -267,7 +285,8 @@ function Build-HtmlPortal {
         $encr   = [System.Net.WebUtility]::HtmlEncode([string]$n.Encryption)
         $sig    = [System.Net.WebUtility]::HtmlEncode([string]$n.Signal)
         $radio  = [System.Net.WebUtility]::HtmlEncode([string]$n.RadioType)
-        "<tr><td>$ssid</td><td>$bssid</td><td>$auth</td><td>$encr</td><td>$sig</td><td>$radio</td></tr>"
+        $channel = [System.Net.WebUtility]::HtmlEncode([string]$n.Channel)
+        "<tr><td>$ssid</td><td>$bssid</td><td>$auth</td><td>$encr</td><td>$sig</td><td>$radio</td><td>$channel</td></tr>"
     }
 
     # Adapter rows
@@ -349,7 +368,7 @@ function Build-HtmlPortal {
 
 <h2>&#x1F4E1; Visible WLAN Networks</h2>
 $(if ($wlanRows) {
-    "<table><thead><tr><th>SSID</th><th>BSSID</th><th>Authentication</th><th>Encryption</th><th>Signal</th><th>Radio Type</th></tr></thead><tbody>$($wlanRows -join '')</tbody></table>"
+    "<table><thead><tr><th>SSID</th><th>BSSID</th><th>Authentication</th><th>Encryption</th><th>Signal</th><th>Radio Type</th><th>Channel</th></tr></thead><tbody>$($wlanRows -join '')</tbody></table>"
 } else {
     "<p class='no-data'>No WLAN data available.</p>"
 })
