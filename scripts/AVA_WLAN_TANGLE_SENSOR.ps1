@@ -231,8 +231,8 @@ function Get-LocalNetworkSnapshot {
 
     $ipConfig = @()
     try {
-        $ipConfig = Get-NetIPConfiguration -ErrorAction SilentlyContinue |
-            Select-Object InterfaceAlias, IPv4Address, IPv6Address, IPv4DefaultGateway, DNSServer
+        $ipConfig = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Select-Object InterfaceAlias, IPv4Address, IPv6Address, IPv4DefaultGateway, DNSServer)
     }
     catch {
         $ipConfig = @(@{ Error = $_.Exception.Message })
@@ -452,7 +452,7 @@ function Invoke-SensorCycle {
     $localSnapshot = Get-LocalNetworkSnapshot
 
     $wlanCount     = $wlanNetworks.Count
-    $summary       = "WLANs=$wlanCount adapters=$($localSnapshot.adapters.Count) neighbours=$($localSnapshot.neighbors.Count)"
+    $summary       = "WLANs=$wlanCount adapters=$($localSnapshot.adapters.Count) neighbors=$($localSnapshot.neighbors.Count)"
 
     Write-EventEntry -Category 'wlan_scan' -Message $summary
 
