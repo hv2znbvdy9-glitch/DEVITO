@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA WLAN TANGLE SENSOR v1 - DEFENSIVE / LOCAL / READ-ONLY
 - Visible WLANs via netsh wlan show networks mode=bssid

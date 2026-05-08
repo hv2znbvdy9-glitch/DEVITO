@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 [CmdletBinding()]
 param(
     [switch]$RunOnce,
@@ -220,7 +220,7 @@ function Check-Network {
 
         $name = $proc.Name.ToLowerInvariant()
         $path = $null
-        try { $path = $proc.Path } catch {}
+        try { $path = $proc.Path } catch { Write-Debug "Process path unavailable: $($_.Exception.Message)" }
 
         if ($name -in @('powershell','pwsh','cmd','python','certutil','bitsadmin')) {
             Write-Alert -Message "SUSPICIOUS CONNECTION: $name -> $remote`:$($c.RemotePort)" -Severity 'HIGH'
@@ -324,6 +324,7 @@ function Remove-GuardianTask {
 # =========================
 # MAIN
 # =========================
+$null = $RunOnce  # Switch accepted for scheduled-task invocation; no-op in single-run design
 if ($RemoveTask) {
     Remove-GuardianTask
     Write-Host "Task entfernt."

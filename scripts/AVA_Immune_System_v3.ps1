@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA IMMUNE SYSTEM v3 – SOC FUSION
 Basierend auf:

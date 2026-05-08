@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA SOC CORE v1 - DEFENSIVE / READ-ONLY / LOCAL MONITORING
 - Persistent event and alert logging (JSONL)

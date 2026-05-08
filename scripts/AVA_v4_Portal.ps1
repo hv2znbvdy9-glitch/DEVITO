@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 <#
 AVA v4 PORTAL + LIVE DASHBOARD + TANGLE SAFE + AUTO DEFENSE MODE
 Lokal / Defensiv / Kontrolliert
@@ -130,7 +130,7 @@ function Add-TangleEvent {
             try {
                 $lastObj = $lastLine | ConvertFrom-Json
                 $lastHash = $lastObj.Hash
-            } catch {}
+            } catch { Write-Debug "Could not parse chain entry: $($_.Exception.Message)" }
         }
     }
 
@@ -253,7 +253,7 @@ function Invoke-AVA-Snapshot {
                 $events.Add((Add-TangleEvent -Type "firewall" -Severity "CRITICAL" -Score 100 -Summary "Firewall Profil deaktiviert" -Details $p)) | Out-Null
             }
         }
-    } catch {}
+    } catch { Write-Debug "Firewall status unavailable: $($_.Exception.Message)" }
 
     # Defender
     try {
@@ -344,13 +344,13 @@ function Invoke-AVA-Snapshot {
                 })) | Out-Null
             }
         }
-    } catch {}
+    } catch { Write-Debug "PowerShell process audit unavailable: $($_.Exception.Message)" }
 
     # Admins
     try {
         $admins = Get-LocalGroupMember -Group "Administrators" | Select-Object Name,ObjectClass,PrincipalSource,SID
         $events.Add((Add-TangleEvent -Type "identity" -Severity "INFO" -Score 0 -Summary "Lokale Administratoren erfasst" -Details $admins)) | Out-Null
-    } catch {}
+    } catch { Write-Debug "Admins not available: $($_.Exception.Message)" }
 
     # Tasks
     try {
@@ -359,7 +359,7 @@ function Invoke-AVA-Snapshot {
             Select-Object TaskName,TaskPath,State
 
         $events.Add((Add-TangleEvent -Type "persistence_audit" -Severity "INFO" -Score 0 -Summary "Nicht-Microsoft Scheduled Tasks erfasst" -Details $tasks)) | Out-Null
-    } catch {}
+    } catch { Write-Debug "Scheduled tasks unavailable: $($_.Exception.Message)" }
 
     # Health
     try {
@@ -381,7 +381,7 @@ function Invoke-AVA-Snapshot {
         } else {
             $events.Add((Add-TangleEvent -Type "health" -Severity "INFO" -Score 0 -Summary "System Health erfasst" -Details $health)) | Out-Null
         }
-    } catch {}
+    } catch { Write-Debug "System health unavailable: $($_.Exception.Message)" }
 
     $maxRisk = 0
     if ($events.Count -gt 0) {
@@ -463,7 +463,7 @@ function New-AVA-PortalHtml {
         $sevSafe  = [string]$e.Severity -replace '[^a-zA-Z0-9]', ''
         $sevCls   = $sevSafe.ToLower()
         $sevBadge = $sevSafe.ToUpper()
-        $score    = 0; try { $score = [int]$e.Score } catch {}
+        $score    = 0; try { $score = [int]$e.Score } catch { Write-Debug "Score cast failed: $($_.Exception.Message)" }
         $hashShort = if ($e.Hash) { $e.Hash.Substring(0,[Math]::Min(12,$e.Hash.Length)) } else { "" }
         "<tr class='row-$sevCls'><td>$(HtmlEncode $e.Time)</td><td><span class='badge badge-$sevBadge'>$(HtmlEncode $e.Severity)</span></td><td>$score</td><td>$(HtmlEncode $e.Type)</td><td>$(HtmlEncode $e.Summary)</td><td><code>$hashShort</code></td></tr>"
     }

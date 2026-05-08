@@ -1,4 +1,4 @@
-#requires -RunAsAdministrator
+﻿#requires -RunAsAdministrator
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
