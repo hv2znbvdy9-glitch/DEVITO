@@ -19,6 +19,7 @@ Rollback AVA Firewall Blocks:
 powershell -ExecutionPolicy Bypass -File .\AVA_Immune_System_v2.ps1 -RollbackBlocks
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'RunOnce', Justification = 'Switch is passed by the scheduled task invocation; the script is single-run by design.')]
 param(
     [switch]$RunOnce,
     [switch]$InstallTask,
@@ -222,7 +223,6 @@ function Remove-GuardianTask {
 # =========================
 # CONTROL ACTIONS
 # =========================
-$null = $RunOnce  # Switch accepted for scheduled-task invocation; no-op in single-run design
 if ($RollbackBlocks) {
     Remove-AvaFirewallBlocks
     return
