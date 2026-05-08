@@ -134,7 +134,7 @@ function Add-TangleEvent {
         }
     }
 
-    $event = [ordered]@{
+    $eventEntry = [ordered]@{
         Time       = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
         Type       = $Type
         Severity   = $Severity
@@ -144,11 +144,11 @@ function Add-TangleEvent {
         Details    = $Details
     }
 
-    $raw = ($event | ConvertTo-Json -Depth 20 -Compress)
+    $raw = ($eventEntry | ConvertTo-Json -Depth 20 -Compress)
     $hash = New-HashString $raw
-    $event["Hash"] = $hash
+    $eventEntry["Hash"] = $hash
 
-    $obj = [PSCustomObject]$event
+    $obj = [PSCustomObject]$eventEntry
 
     Write-JsonLine -Path $EventLog -Object $obj
     Write-JsonLine -Path $ChainFile -Object $obj
