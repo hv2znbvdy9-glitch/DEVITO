@@ -230,7 +230,7 @@ function Send-AlertEmail {
                 -UseSsl
         }
         else {
-            $securePass = ConvertTo-SecureString $script:SmtpPass -AsPlainText -Force
+            $securePass = [System.Net.NetworkCredential]::new('', [string]$script:SmtpPass).SecurePassword
             $cred = New-Object System.Management.Automation.PSCredential($script:SmtpUser, $securePass)
 
             Send-MailMessage `
