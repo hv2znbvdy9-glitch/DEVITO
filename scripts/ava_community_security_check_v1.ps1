@@ -177,6 +177,8 @@ catch {
 # =========================
 # LOKALE ADMINISTRATOREN
 # =========================
+try {
+    $admins = Get-LocalGroupMember -Group 'Administrators' -ErrorAction Stop
     foreach ($a in $admins) {
         Add-Result 'Konten' 'INFO' 'Lokaler Administrator' `
             "$($a.Name) | $($a.ObjectClass)" `
