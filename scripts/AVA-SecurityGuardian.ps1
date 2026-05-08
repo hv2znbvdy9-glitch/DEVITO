@@ -1,4 +1,5 @@
 ﻿#requires -RunAsAdministrator
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'RunOnce', Justification = 'Switch is passed by the scheduled task invocation; the script is single-run by design.')]
 [CmdletBinding()]
 param(
     [switch]$RunOnce,
@@ -324,7 +325,6 @@ function Remove-GuardianTask {
 # =========================
 # MAIN
 # =========================
-$null = $RunOnce  # Switch accepted for scheduled-task invocation; no-op in single-run design
 if ($RemoveTask) {
     Remove-GuardianTask
     Write-Host "Task entfernt."
