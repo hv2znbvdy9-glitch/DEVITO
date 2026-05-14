@@ -319,7 +319,7 @@ function New-Portal {
         "<tr>$wlanCells</tr>"
     }
     if (-not $wlanRows) {
-        $wlanRows = Format-EmptyRow -Cols 7 -Text 'No WLAN data available.'
+        $wlanRows = @(Format-EmptyRow -Cols 7 -Text 'No WLAN data available.')
     }
 
     $neighborRows = foreach ($n in @($Snapshot.neighbors)) {
@@ -336,7 +336,7 @@ function New-Portal {
         "<tr>$neighborCells</tr>"
     }
     if (-not $neighborRows) {
-        $neighborRows = Format-EmptyRow -Cols 4 -Text 'No neighbor entries found.'
+        $neighborRows = @(Format-EmptyRow -Cols 4 -Text 'No neighbor entries found.')
     }
 
     $adapterRows = foreach ($a in @($Snapshot.adapters)) {
@@ -354,7 +354,7 @@ function New-Portal {
         "<tr>$adapterCells</tr>"
     }
     if (-not $adapterRows) {
-        $adapterRows = Format-EmptyRow -Cols 5 -Text 'No active adapters found.'
+        $adapterRows = @(Format-EmptyRow -Cols 5 -Text 'No active adapters found.')
     }
 
     $html = @"
