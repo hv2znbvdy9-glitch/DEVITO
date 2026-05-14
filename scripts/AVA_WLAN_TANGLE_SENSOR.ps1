@@ -83,6 +83,12 @@ function Write-EventEntry {
     } -Path $EventLog
 }
 
+function HtmlEncode {
+    param([AllowNull()][object]$Value)
+    if ($null -eq $Value) { return '' }
+    return [System.Net.WebUtility]::HtmlEncode([string]$Value)
+}
+
 # =============================================================
 # TANGLE HASH CHAIN
 # =============================================================
@@ -261,58 +267,77 @@ function Get-LocalNetworkSnapshot {
 # =============================================================
 # HTML PORTAL
 # =============================================================
-function Build-HtmlPortal {
-    param(
-        [Parameter(Mandatory)][object[]]$WlanNetworks,
-        [Parameter(Mandatory)][object]$LocalSnapshot
-    )
+function New-Portal {
+    param([Parameter(Mandatory)][object]$Snapshot)
 
-    $generatedAt  = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-    $networkCount = $WlanNetworks.Count
-
-    # WLAN table rows
-    $wlanRows = foreach ($n in $WlanNetworks) {
-        if ($n.PSObject.Properties.Name -contains 'Error' -or
-            $n.PSObject.Properties.Name -contains 'Info') {
-            $msg = if ($n.Error) { $n.Error } else { $n.Info }
-            "<tr><td colspan='6' style='color:#9ca3af;font-style:italic'>$([System.Net.WebUtility]::HtmlEncode($msg))</td></tr>"
-            continue
-        }
-        $ssid   = [System.Net.WebUtility]::HtmlEncode([string]$n.SSID)
-        $bssid  = [System.Net.WebUtility]::HtmlEncode([string]$n.BSSID)
-        $auth   = [System.Net.WebUtility]::HtmlEncode([string]$n.Authentication)
-        $encr   = [System.Net.WebUtility]::HtmlEncode([string]$n.Encryption)
-        $sig    = [System.Net.WebUtility]::HtmlEncode([string]$n.Signal)
-        $radio  = [System.Net.WebUtility]::HtmlEncode([string]$n.RadioType)
-        $channel = [System.Net.WebUtility]::HtmlEncode([string]$n.Channel)
-        "<tr><td>$ssid</td><td>$bssid</td><td>$auth</td><td>$encr</td><td>$sig</td><td>$radio</td><td>$channel</td></tr>"
+    $wlanCount     = @($Snapshot.wlan).Count
+    $neighborCount = @($Snapshot.neighbors).Count
+    $adapterCount  = @($Snapshot.adapters).Count
+    $generatedAt   = if ($Snapshot.generated_at -and ([string]$Snapshot.generated_at).Trim()) {
+        [string]$Snapshot.generated_at
+    }
+    else {
+        (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     }
 
-    # Adapter rows
-    $adapterRows = foreach ($a in $LocalSnapshot.adapters) {
-        if ($a.ContainsKey('Error')) {
-            "<tr><td colspan='5' style='color:#9ca3af;font-style:italic'>$([System.Net.WebUtility]::HtmlEncode($a.Error))</td></tr>"
-            continue
+    $lastHash = 'N/A'
+    if (Test-Path -LiteralPath $TangleState) {
+        try {
+            $stateObj = Get-Content -LiteralPath $TangleState -Raw -Encoding UTF8 | ConvertFrom-Json
+            $lastHash = if ($stateObj.last_hash) { [string]$stateObj.last_hash } else { 'N/A' }
         }
-        $name  = [System.Net.WebUtility]::HtmlEncode([string]$a.Name)
-        $desc  = [System.Net.WebUtility]::HtmlEncode([string]$a.Description)
-        $mac   = [System.Net.WebUtility]::HtmlEncode([string]$a.MacAddress)
-        $speed = [System.Net.WebUtility]::HtmlEncode([string]$a.LinkSpeed)
-        $ips   = [System.Net.WebUtility]::HtmlEncode(($a.IPAddresses -join ', '))
-        "<tr><td>$name</td><td>$desc</td><td>$mac</td><td>$speed</td><td>$ips</td></tr>"
+        catch {
+            $lastHash = 'N/A'
+            Write-EventEntry -Category 'portal' -Severity 'WARN' -Message "Could not parse tangle state: $($_.Exception.Message)"
+        }
     }
 
-    # Neighbour rows
-    $neighbourRows = foreach ($nb in $LocalSnapshot.neighbors) {
-        if ($nb -is [hashtable] -and $nb.ContainsKey('Error')) {
-            "<tr><td colspan='4' style='color:#9ca3af;font-style:italic'>$([System.Net.WebUtility]::HtmlEncode($nb.Error))</td></tr>"
+    $wlanRows = foreach ($w in @($Snapshot.wlan)) {
+        if ($w.PSObject.Properties.Name -contains 'Error' -or
+            $w.PSObject.Properties.Name -contains 'Info') {
+            $msg = if ($w.Error) { $w.Error } else { $w.Info }
+            "<tr><td colspan='7' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $msg)</td></tr>"
             continue
         }
-        $ip    = [System.Net.WebUtility]::HtmlEncode([string]$nb.IPAddress)
-        $mac   = [System.Net.WebUtility]::HtmlEncode([string]$nb.LinkLayerAddress)
-        $state = [System.Net.WebUtility]::HtmlEncode([string]$nb.State)
-        $iface = [System.Net.WebUtility]::HtmlEncode([string]$nb.InterfaceAlias)
-        "<tr><td>$ip</td><td>$mac</td><td>$state</td><td>$iface</td></tr>"
+        $wlanCells = @(
+            "<td>$(HtmlEncode $w.SSID)</td>"
+            "<td>$(HtmlEncode $w.BSSID)</td>"
+            "<td>$(HtmlEncode $w.Authentication)</td>"
+            "<td>$(HtmlEncode $w.Encryption)</td>"
+            "<td>$(HtmlEncode $w.Signal)</td>"
+            "<td>$(HtmlEncode $w.RadioType)</td>"
+            "<td>$(HtmlEncode $w.Channel)</td>"
+        ) -join ''
+        "<tr>$wlanCells</tr>"
+    }
+
+    $neighborRows = foreach ($n in @($Snapshot.neighbors)) {
+        if ($n.PSObject.Properties.Name -contains 'Error') {
+            "<tr><td colspan='4' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $n.Error)</td></tr>"
+            continue
+        }
+        $neighborCells = @(
+            "<td>$(HtmlEncode $n.IPAddress)</td>"
+            "<td>$(HtmlEncode $n.LinkLayerAddress)</td>"
+            "<td>$(HtmlEncode $n.State)</td>"
+            "<td>$(HtmlEncode $n.InterfaceAlias)</td>"
+        ) -join ''
+        "<tr>$neighborCells</tr>"
+    }
+
+    $adapterRows = foreach ($a in @($Snapshot.adapters)) {
+        if ($a.PSObject.Properties.Name -contains 'Error') {
+            "<tr><td colspan='5' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $a.Error)</td></tr>"
+            continue
+        }
+        $adapterCells = @(
+            "<td>$(HtmlEncode $a.Name)</td>"
+            "<td>$(HtmlEncode $a.Description)</td>"
+            "<td>$(HtmlEncode $a.MacAddress)</td>"
+            "<td>$(HtmlEncode $a.LinkSpeed)</td>"
+            "<td>$(HtmlEncode ((@($a.IPAddresses) | Where-Object { $_ }) -join ', '))</td>"
+        ) -join ''
+        "<tr>$adapterCells</tr>"
     }
 
     $html = @"
@@ -346,22 +371,23 @@ function Build-HtmlPortal {
 <h1>&#x1F4F6; AVA WLAN TANGLE SENSOR &#x1F6E1;</h1>
 <div class="subtitle">
   Generated: $generatedAt &nbsp;|&nbsp;
-  Host: $([System.Net.WebUtility]::HtmlEncode($env:COMPUTERNAME)) &nbsp;|&nbsp;
-  User: $([System.Net.WebUtility]::HtmlEncode($env:USERNAME))
+  Host: $(HtmlEncode $env:COMPUTERNAME) &nbsp;|&nbsp;
+  User: $(HtmlEncode $env:USERNAME) &nbsp;|&nbsp;
+  Last Hash: $(HtmlEncode $lastHash)
 </div>
 
 <div class="stats">
   <div class="stat-card">
-    <div class="stat-number">$networkCount</div>
+    <div class="stat-number">$wlanCount</div>
     <div class="stat-label">Visible WLANs</div>
   </div>
   <div class="stat-card">
-    <div class="stat-number">$($LocalSnapshot.adapters.Count)</div>
+    <div class="stat-number">$adapterCount</div>
     <div class="stat-label">Active Adapters</div>
   </div>
   <div class="stat-card">
-    <div class="stat-number">$($LocalSnapshot.neighbors.Count)</div>
-    <div class="stat-label">ARP Neighbours</div>
+    <div class="stat-number">$neighborCount</div>
+    <div class="stat-label">ARP Neighbors</div>
   </div>
 </div>
 
@@ -379,25 +405,39 @@ $(if ($adapterRows) {
     "<p class='no-data'>No active adapters found.</p>"
 })
 
-<h2>&#x1F4CB; LAN Neighbours (ARP Cache)</h2>
-$(if ($neighbourRows) {
-    "<table><thead><tr><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th><th>Interface</th></tr></thead><tbody>$($neighbourRows -join '')</tbody></table>"
+<h2>&#x1F4CB; LAN Neighbors (ARP Cache)</h2>
+$(if ($neighborRows) {
+    "<table><thead><tr><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th><th>Interface</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>"
 } else {
-    "<p class='no-data'>No neighbour entries found.</p>"
+    "<p class='no-data'>No neighbor entries found.</p>"
 })
 
 <footer>
   AVA WLAN TANGLE SENSOR v1 &mdash; Defensive / Read-Only / Local &mdash;
-  Tangle log: $([System.Net.WebUtility]::HtmlEncode($TangleLog)) &mdash;
-  Events: $([System.Net.WebUtility]::HtmlEncode($EventLog))
+  Tangle log: $(HtmlEncode $TangleLog) &mdash;
+  Events: $(HtmlEncode $EventLog)
 </footer>
 
 </body>
 </html>
 "@
 
-    Set-Content -Path $PortalHtml -Value $html -Encoding UTF8
+    Set-Content -LiteralPath $PortalHtml -Value $html -Encoding UTF8
     Write-EventEntry -Category 'portal' -Message "HTML portal written: $PortalHtml"
+}
+
+function Build-HtmlPortal {
+    param(
+        [Parameter(Mandatory)][object[]]$WlanNetworks,
+        [Parameter(Mandatory)][object]$LocalSnapshot
+    )
+
+    New-Portal -Snapshot @{
+        wlan        = $WlanNetworks
+        neighbors   = $LocalSnapshot.neighbors
+        adapters    = $LocalSnapshot.adapters
+        generated_at = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    }
 }
 
 # =============================================================
