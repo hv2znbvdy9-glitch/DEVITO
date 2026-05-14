@@ -89,6 +89,14 @@ function HtmlEncode {
     return [System.Net.WebUtility]::HtmlEncode([string]$Value)
 }
 
+function Format-EmptyRow {
+    param(
+        [int]$Cols,
+        [string]$Text
+    )
+    return "<tr><td colspan='$Cols' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $Text)</td></tr>"
+}
+
 # =============================================================
 # TANGLE HASH CHAIN
 # =============================================================
@@ -296,7 +304,7 @@ function New-Portal {
         if ($w.PSObject.Properties.Name -contains 'Error' -or
             $w.PSObject.Properties.Name -contains 'Info') {
             $msg = if ($w.Error) { $w.Error } else { $w.Info }
-            "<tr><td colspan='7' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $msg)</td></tr>"
+            Format-EmptyRow -Cols 7 -Text $msg
             continue
         }
         $wlanCells = @(
@@ -310,10 +318,13 @@ function New-Portal {
         ) -join ''
         "<tr>$wlanCells</tr>"
     }
+    if (-not $wlanRows) {
+        $wlanRows = Format-EmptyRow -Cols 7 -Text 'No WLAN data available.'
+    }
 
     $neighborRows = foreach ($n in @($Snapshot.neighbors)) {
         if ($n.PSObject.Properties.Name -contains 'Error') {
-            "<tr><td colspan='4' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $n.Error)</td></tr>"
+            Format-EmptyRow -Cols 4 -Text $n.Error
             continue
         }
         $neighborCells = @(
@@ -324,10 +335,13 @@ function New-Portal {
         ) -join ''
         "<tr>$neighborCells</tr>"
     }
+    if (-not $neighborRows) {
+        $neighborRows = Format-EmptyRow -Cols 4 -Text 'No neighbor entries found.'
+    }
 
     $adapterRows = foreach ($a in @($Snapshot.adapters)) {
         if ($a.PSObject.Properties.Name -contains 'Error') {
-            "<tr><td colspan='5' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $a.Error)</td></tr>"
+            Format-EmptyRow -Cols 5 -Text $a.Error
             continue
         }
         $adapterCells = @(
@@ -338,6 +352,9 @@ function New-Portal {
             "<td>$(HtmlEncode ((@($a.IPAddresses) | Where-Object { $_ }) -join ', '))</td>"
         ) -join ''
         "<tr>$adapterCells</tr>"
+    }
+    if (-not $adapterRows) {
+        $adapterRows = Format-EmptyRow -Cols 5 -Text 'No active adapters found.'
     }
 
     $html = @"
@@ -362,7 +379,6 @@ function New-Portal {
     th { padding: 10px 12px; text-align: left; color: #9ca3af; font-weight: 600; border-bottom: 1px solid #374151; }
     td { padding: 8px 12px; border-bottom: 1px solid #1f2937; word-break: break-all; }
     tbody tr:hover { background: #1f2937; }
-    .no-data { color: #6b7280; font-style: italic; padding: 12px 0; }
     footer { margin-top: 40px; font-size: 0.75rem; color: #4b5563; border-top: 1px solid #374151; padding-top: 12px; }
   </style>
 </head>
@@ -392,25 +408,13 @@ function New-Portal {
 </div>
 
 <h2>&#x1F4E1; Visible WLAN Networks</h2>
-$(if ($wlanRows) {
-    "<table><thead><tr><th>SSID</th><th>BSSID</th><th>Authentication</th><th>Encryption</th><th>Signal</th><th>Radio Type</th><th>Channel</th></tr></thead><tbody>$($wlanRows -join '')</tbody></table>"
-} else {
-    "<p class='no-data'>No WLAN data available.</p>"
-})
+<table><thead><tr><th>SSID</th><th>BSSID</th><th>Authentication</th><th>Encryption</th><th>Signal</th><th>Radio Type</th><th>Channel</th></tr></thead><tbody>$($wlanRows -join '')</tbody></table>
 
 <h2>&#x1F5A7; Local Adapters</h2>
-$(if ($adapterRows) {
-    "<table><thead><tr><th>Name</th><th>Description</th><th>MAC</th><th>Speed</th><th>IP Addresses</th></tr></thead><tbody>$($adapterRows -join '')</tbody></table>"
-} else {
-    "<p class='no-data'>No active adapters found.</p>"
-})
+<table><thead><tr><th>Name</th><th>Description</th><th>MAC</th><th>Speed</th><th>IP Addresses</th></tr></thead><tbody>$($adapterRows -join '')</tbody></table>
 
 <h2>&#x1F4CB; LAN Neighbors (ARP Cache)</h2>
-$(if ($neighborRows) {
-    "<table><thead><tr><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th><th>Interface</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>"
-} else {
-    "<p class='no-data'>No neighbor entries found.</p>"
-})
+<table><thead><tr><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th><th>Interface</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>
 
 <footer>
   AVA WLAN TANGLE SENSOR v1 &mdash; Defensive / Read-Only / Local &mdash;
