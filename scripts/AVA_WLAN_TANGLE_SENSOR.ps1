@@ -273,7 +273,12 @@ function New-Portal {
     $wlanCount     = @($Snapshot.wlan).Count
     $neighborCount = @($Snapshot.neighbors).Count
     $adapterCount  = @($Snapshot.adapters).Count
-    $generatedAt   = if ($Snapshot.generated_at) { [string]$Snapshot.generated_at } else { (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') }
+    $generatedAt   = if ($Snapshot.generated_at -and ([string]$Snapshot.generated_at).Trim()) {
+        [string]$Snapshot.generated_at
+    }
+    else {
+        (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    }
 
     $lastHash = 'N/A'
     if (Test-Path -LiteralPath $TangleState) {
@@ -330,7 +335,7 @@ function New-Portal {
             "<td>$(HtmlEncode $a.Description)</td>"
             "<td>$(HtmlEncode $a.MacAddress)</td>"
             "<td>$(HtmlEncode $a.LinkSpeed)</td>"
-            "<td>$(HtmlEncode ($a.IPAddresses -join ', '))</td>"
+            "<td>$(HtmlEncode ((@($a.IPAddresses)) -join ', '))</td>"
         ) -join ''
         "<tr>$adapterCells</tr>"
     }
