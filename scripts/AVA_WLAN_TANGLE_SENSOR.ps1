@@ -292,7 +292,16 @@ function New-Portal {
             "<tr><td colspan='7' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $msg)</td></tr>"
             continue
         }
-        "<tr><td>$(HtmlEncode $w.SSID)</td><td>$(HtmlEncode $w.BSSID)</td><td>$(HtmlEncode $w.Authentication)</td><td>$(HtmlEncode $w.Encryption)</td><td>$(HtmlEncode $w.Signal)</td><td>$(HtmlEncode $w.RadioType)</td><td>$(HtmlEncode $w.Channel)</td></tr>"
+        $wlanCells = @(
+            "<td>$(HtmlEncode $w.SSID)</td>"
+            "<td>$(HtmlEncode $w.BSSID)</td>"
+            "<td>$(HtmlEncode $w.Authentication)</td>"
+            "<td>$(HtmlEncode $w.Encryption)</td>"
+            "<td>$(HtmlEncode $w.Signal)</td>"
+            "<td>$(HtmlEncode $w.RadioType)</td>"
+            "<td>$(HtmlEncode $w.Channel)</td>"
+        ) -join ''
+        "<tr>$wlanCells</tr>"
     }
 
     $neighborRows = foreach ($n in @($Snapshot.neighbors)) {
@@ -300,7 +309,13 @@ function New-Portal {
             "<tr><td colspan='4' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $n.Error)</td></tr>"
             continue
         }
-        "<tr><td>$(HtmlEncode $n.InterfaceAlias)</td><td>$(HtmlEncode $n.IPAddress)</td><td>$(HtmlEncode $n.LinkLayerAddress)</td><td>$(HtmlEncode $n.State)</td></tr>"
+        $neighborCells = @(
+            "<td>$(HtmlEncode $n.InterfaceAlias)</td>"
+            "<td>$(HtmlEncode $n.IPAddress)</td>"
+            "<td>$(HtmlEncode $n.LinkLayerAddress)</td>"
+            "<td>$(HtmlEncode $n.State)</td>"
+        ) -join ''
+        "<tr>$neighborCells</tr>"
     }
 
     $adapterRows = foreach ($a in @($Snapshot.adapters)) {
@@ -308,8 +323,14 @@ function New-Portal {
             "<tr><td colspan='5' style='color:#9ca3af;font-style:italic'>$(HtmlEncode $a.Error)</td></tr>"
             continue
         }
-        $ips = if ($a.IPAddresses) { ($a.IPAddresses -join ', ') } else { '' }
-        "<tr><td>$(HtmlEncode $a.Name)</td><td>$(HtmlEncode $a.Description)</td><td>$(HtmlEncode $a.MacAddress)</td><td>$(HtmlEncode $a.LinkSpeed)</td><td>$(HtmlEncode $ips)</td></tr>"
+        $adapterCells = @(
+            "<td>$(HtmlEncode $a.Name)</td>"
+            "<td>$(HtmlEncode $a.Description)</td>"
+            "<td>$(HtmlEncode $a.MacAddress)</td>"
+            "<td>$(HtmlEncode $a.LinkSpeed)</td>"
+            "<td>$(HtmlEncode ($a.IPAddresses -join ', '))</td>"
+        ) -join ''
+        "<tr>$adapterCells</tr>"
     }
 
     $html = @"
