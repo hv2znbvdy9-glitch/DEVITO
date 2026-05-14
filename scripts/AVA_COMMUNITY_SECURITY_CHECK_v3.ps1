@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 AVA COMMUNITY SECURITY CHECK v3
 Ehrenamtlich / Respektvoll / Gesellschaftlich wertvoll
@@ -76,7 +76,7 @@ function Get-StatusColor {
     }
 }
 
-function New-ResultsTableRows {
+function ConvertTo-ResultTableMarkup {
     param(
         [object[]]$Entries
     )
@@ -103,7 +103,7 @@ function New-ResultsTableRows {
         }) -join "`n"
 }
 
-function New-SectionCards {
+function ConvertTo-SectionCardMarkup {
     param(
         [object[]]$Entries
     )
@@ -141,7 +141,7 @@ function New-SectionCards {
 "@
 }
 
-function New-DetailList {
+function ConvertTo-DetailListMarkup {
     param(
         [string[]]$Items
     )
@@ -212,14 +212,14 @@ catch {
 
 try {
     $profiles = Get-NetFirewallProfile
-    foreach ($profile in $profiles) {
-        if ($profile.Enabled) {
-            Add-Result -Category 'Firewall' -Status 'OK' -Title "Firewall Profil: $($profile.Name)" `
+    foreach ($firewallProfile in $profiles) {
+        if ($firewallProfile.Enabled) {
+            Add-Result -Category 'Firewall' -Status 'OK' -Title "Firewall Profil: $($firewallProfile.Name)" `
                 -Message 'Aktiv' `
                 -Recommendation 'Firewall aktiv lassen.'
         }
         else {
-            Add-Result -Category 'Firewall' -Status 'CRITICAL' -Title "Firewall Profil: $($profile.Name)" `
+            Add-Result -Category 'Firewall' -Status 'CRITICAL' -Title "Firewall Profil: $($firewallProfile.Name)" `
                 -Message 'Nicht aktiv' `
                 -Recommendation 'Firewall-Profil prüfen und aktivieren.'
         }
@@ -463,10 +463,10 @@ foreach ($entry in $Results) {
 }
 $textReport -join "`r`n" | Set-Content -Path $ReportTxt -Encoding UTF8
 
-$ProtectionRows = New-ResultsTableRows -Entries ($ProtectionEntries | Select-Object -First $MaxRowsPerSection)
-$NetworkRows = New-ResultsTableRows -Entries ($NetworkEntries | Select-Object -First $MaxRowsPerSection)
-$ProcessRows = New-ResultsTableRows -Entries ($ProcessEntries | Select-Object -First $MaxRowsPerSection)
-$AllRows = New-ResultsTableRows -Entries $Results
+$ProtectionRows = ConvertTo-ResultTableMarkup -Entries ($ProtectionEntries | Select-Object -First $MaxRowsPerSection)
+$NetworkRows = ConvertTo-ResultTableMarkup -Entries ($NetworkEntries | Select-Object -First $MaxRowsPerSection)
+$ProcessRows = ConvertTo-ResultTableMarkup -Entries ($ProcessEntries | Select-Object -First $MaxRowsPerSection)
+$AllRows = ConvertTo-ResultTableMarkup -Entries $Results
 
 $Html = @"
 <!DOCTYPE html>
@@ -598,7 +598,7 @@ $Html = @"
     <section class="section">
       <h2>Defender- / Firewall-Check</h2>
       <div class="mini-grid">
-        $(New-SectionCards -Entries $ProtectionEntries)
+        $(ConvertTo-SectionCardMarkup -Entries $ProtectionEntries)
       </div>
       <table>
         <thead>
@@ -620,11 +620,11 @@ $Html = @"
       <section class="section">
         <h2>Netzwerkübersicht</h2>
         <div class="mini-grid">
-          $(New-SectionCards -Entries $NetworkEntries)
+          $(ConvertTo-SectionCardMarkup -Entries $NetworkEntries)
         </div>
         <ul>
-          $(New-DetailList -Items ([string[]]$networkDetails.ToArray()))
-          $(New-DetailList -Items $TopConnectionDetails)
+          $(ConvertTo-DetailListMarkup -Items ([string[]]$networkDetails.ToArray()))
+          $(ConvertTo-DetailListMarkup -Items $TopConnectionDetails)
         </ul>
         <table>
           <thead>
@@ -645,7 +645,7 @@ $Html = @"
       <section class="section">
         <h2>PowerShell-Prozessanalyse</h2>
         <div class="mini-grid">
-          $(New-SectionCards -Entries $ProcessEntries)
+          $(ConvertTo-SectionCardMarkup -Entries $ProcessEntries)
         </div>
         <ul>
           <li>Zusätzliche laufende PowerShell-Prozesse: $(ConvertTo-HtmlEncoded $powerShellProcessCount)</li>
