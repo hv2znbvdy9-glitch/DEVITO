@@ -282,6 +282,7 @@ function New-Portal {
         }
         catch {
             $lastHash = 'N/A'
+            Write-EventEntry -Category 'portal' -Severity 'WARN' -Message "Could not parse tangle state: $($_.Exception.Message)"
         }
     }
 
@@ -380,7 +381,7 @@ function New-Portal {
   </div>
   <div class="stat-card">
     <div class="stat-number">$neighborCount</div>
-    <div class="stat-label">ARP Neighbours</div>
+    <div class="stat-label">ARP Neighbors</div>
   </div>
 </div>
 
@@ -398,11 +399,11 @@ $(if ($adapterRows) {
     "<p class='no-data'>No active adapters found.</p>"
 })
 
-<h2>&#x1F4CB; LAN Neighbours (ARP Cache)</h2>
+<h2>&#x1F4CB; LAN Neighbors (ARP Cache)</h2>
 $(if ($neighborRows) {
     "<table><thead><tr><th>Interface</th><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>"
 } else {
-    "<p class='no-data'>No neighbour entries found.</p>"
+    "<p class='no-data'>No neighbor entries found.</p>"
 })
 
 <footer>
