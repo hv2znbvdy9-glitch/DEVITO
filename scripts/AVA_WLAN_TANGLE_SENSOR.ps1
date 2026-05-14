@@ -335,7 +335,7 @@ function New-Portal {
             "<td>$(HtmlEncode $a.Description)</td>"
             "<td>$(HtmlEncode $a.MacAddress)</td>"
             "<td>$(HtmlEncode $a.LinkSpeed)</td>"
-            "<td>$(HtmlEncode ((@($a.IPAddresses)) -join ', '))</td>"
+            "<td>$(HtmlEncode ((@($a.IPAddresses) | Where-Object { $_ }) -join ', '))</td>"
         ) -join ''
         "<tr>$adapterCells</tr>"
     }
