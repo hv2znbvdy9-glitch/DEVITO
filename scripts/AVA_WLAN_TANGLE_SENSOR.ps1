@@ -278,7 +278,8 @@ function New-Portal {
     $lastHash = 'N/A'
     if (Test-Path -LiteralPath $TangleState) {
         try {
-            $lastHash = (Get-Content -LiteralPath $TangleState -Raw -Encoding UTF8 | ConvertFrom-Json).last_hash
+            $stateObj = Get-Content -LiteralPath $TangleState -Raw -Encoding UTF8 | ConvertFrom-Json
+            $lastHash = if ($stateObj.last_hash) { [string]$stateObj.last_hash } else { 'N/A' }
         }
         catch {
             $lastHash = 'N/A'
@@ -311,10 +312,10 @@ function New-Portal {
             continue
         }
         $neighborCells = @(
-            "<td>$(HtmlEncode $n.InterfaceAlias)</td>"
             "<td>$(HtmlEncode $n.IPAddress)</td>"
             "<td>$(HtmlEncode $n.LinkLayerAddress)</td>"
             "<td>$(HtmlEncode $n.State)</td>"
+            "<td>$(HtmlEncode $n.InterfaceAlias)</td>"
         ) -join ''
         "<tr>$neighborCells</tr>"
     }
@@ -401,7 +402,7 @@ $(if ($adapterRows) {
 
 <h2>&#x1F4CB; LAN Neighbors (ARP Cache)</h2>
 $(if ($neighborRows) {
-    "<table><thead><tr><th>Interface</th><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>"
+    "<table><thead><tr><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th><th>Interface</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>"
 } else {
     "<p class='no-data'>No neighbor entries found.</p>"
 })
