@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, List, Optional, Sequence, Tuple
 
-import psutil
+import psutil  # type: ignore[import-untyped]
 
 KNOWN_SAFE_IPS = {
     "8.8.8.8": "Google DNS",
@@ -119,7 +119,9 @@ def analyze_system(
     return clamp(score), alerts
 
 
-def analyze_network(connections: Sequence[Any], remote_ips: Sequence[str]) -> Tuple[int, List[Alert]]:
+def analyze_network(
+    connections: Sequence[Any], remote_ips: Sequence[str]
+) -> Tuple[int, List[Alert]]:
     """Calculate the network score and generated alerts."""
     score = 2
     alerts: List[Alert] = []
