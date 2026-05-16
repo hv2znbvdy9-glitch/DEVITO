@@ -50,6 +50,17 @@ $PortalDir  = Join-Path $Root 'Portal'
 $TaskName   = 'AVA_3_14_NEXT_LAYER_ALL'
 $ScriptPath = $PSCommandPath
 
+$MinPortalRefreshSeconds = 5
+$DefaultPortalRefreshSeconds = 300
+$DefaultLogRotationMaxMB = 25
+$TaskPathExcludePattern = '\Microsoft\*'
+$WarnScoreThreshold = 150
+$HighScoreThreshold = 300
+$CriticalScoreThreshold = 500
+$MaxRiskScore = 999
+
+$PortalRefreshSeconds = if ($Loop) { [Math]::Max($MinPortalRefreshSeconds, $IntervalSeconds) } else { $DefaultPortalRefreshSeconds }
+
 $EventLog     = Join-Path $LogDir 'ava_3_14_events.jsonl'
 $AlertLog     = Join-Path $LogDir 'ava_3_14_alerts.jsonl'
 $TangleLog    = Join-Path $LogDir 'ava_3_14_tangle.jsonl'
@@ -101,8 +112,13 @@ function Sha256Text {
     param([Parameter(Mandatory)][string]$Text)
 
     $sha = [System.Security.Cryptography.SHA256]::Create()
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
-    (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '')
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '')
+    }
+    finally {
+        $sha.Dispose()
+    }
 }
 
 function Write-JsonLine {
@@ -118,7 +134,7 @@ function Write-JsonLine {
 function Invoke-LogRotation {
     param(
         [Parameter(Mandatory)][string]$Path,
-        [int]$MaxMB = 25
+        [int]$MaxMB = $DefaultLogRotationMaxMB
     )
 
     if (Test-Path -LiteralPath $Path) {
@@ -189,6 +205,24 @@ function Add-Alert {
     }
 }
 
+function Get-HealthFromScore {
+    param([Parameter(Mandatory)][int]$Score)
+
+    if ($Score -ge $CriticalScoreThreshold) { return 'CRITICAL' }
+    if ($Score -ge $HighScoreThreshold) { return 'HIGH' }
+    if ($Score -ge $WarnScoreThreshold) { return 'WARN' }
+    return 'OK'
+}
+
+function Get-SeverityFromScore {
+    param([Parameter(Mandatory)][int]$Score)
+
+    if ($Score -ge $CriticalScoreThreshold) { return 'CRITICAL' }
+    if ($Score -ge $HighScoreThreshold) { return 'HIGH' }
+    if ($Score -ge $WarnScoreThreshold) { return 'MEDIUM' }
+    return 'LOW'
+}
+
 # =========================
 # COLLECTORS
 # =========================
@@ -235,7 +269,7 @@ function Get-AdminsSafe {
 function Get-TasksSafe {
     try {
         Get-ScheduledTask |
-            Where-Object { $_.TaskPath -notlike '\Microsoft*' } |
+            Where-Object { $_.TaskPath -notlike $TaskPathExcludePattern } |
             Select-Object TaskName, TaskPath, State
     }
     catch {
@@ -318,7 +352,7 @@ function Get-WlanNetworksSafe {
             $enc = $Matches[1]
         }
         elseif ($l -match '^BSSID\s+\d+\s+:\s+(.*)$') {
-            $items.Add([pscustomobject]@{
+            $null = $items.Add([pscustomobject]@{
                     SSID           = $ssid
                     BSSID          = $Matches[1]
                     Authentication = $auth
@@ -326,7 +360,7 @@ function Get-WlanNetworksSafe {
                     Signal         = $null
                     RadioType      = $null
                     Channel        = $null
-                }) | Out-Null
+                })
         }
         elseif ($l -match '^Signal\s+:\s+(.*)$') {
             if ($items.Count -gt 0) { $items[$items.Count - 1].Signal = $Matches[1] }
@@ -428,7 +462,7 @@ function Measure-SnapshotRisk {
     if ($Snapshot.defender.PSObject.Properties.Name -contains 'RealTimeProtectionEnabled') {
         if ($Snapshot.defender.RealTimeProtectionEnabled -eq $false) {
             $score += 100
-            $alerts.Add((Add-Alert -Severity 'CRITICAL' -Title 'Defender Echtzeitschutz deaktiviert' -Message 'Windows Defender RealTimeProtectionEnabled ist FALSE.' -Score 100 -Data $Snapshot.defender)) | Out-Null
+            $null = $alerts.Add((Add-Alert -Severity 'CRITICAL' -Title 'Defender Echtzeitschutz deaktiviert' -Message 'Windows Defender RealTimeProtectionEnabled ist FALSE.' -Score 100 -Data $Snapshot.defender))
         }
     }
 
@@ -436,7 +470,7 @@ function Measure-SnapshotRisk {
     foreach ($fw in @($Snapshot.firewall)) {
         if ($fw.Enabled -eq $false) {
             $score += 80
-            $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Firewall Profil deaktiviert' -Message "Firewall-Profil deaktiviert: $($fw.Name)" -Score 80 -Data $fw)) | Out-Null
+            $null = $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Firewall Profil deaktiviert' -Message "Firewall-Profil deaktiviert: $($fw.Name)" -Score 80 -Data $fw))
         }
     }
 
@@ -457,7 +491,7 @@ function Measure-SnapshotRisk {
             }
 
             $score += $s
-            $alerts.Add((Add-Alert -Severity $sev -Title 'Risiko-Port Verbindung' -Message "Established TCP zu Risiko-Port $remotePort durch Prozess $($c.Process)." -Score $s -Data $c)) | Out-Null
+            $null = $alerts.Add((Add-Alert -Severity $sev -Title 'Risiko-Port Verbindung' -Message "Established TCP zu Risiko-Port $remotePort durch Prozess $($c.Process)." -Score $s -Data $c))
         }
     }
 
@@ -485,10 +519,10 @@ function Measure-SnapshotRisk {
             if ($hits.Count -gt 0) {
                 $s = 85
                 $score += $s
-                $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Verdächtige Kommandozeile' -Message "Verdächtige Parameter erkannt bei $($p.Name)." -Score $s -Data ([ordered]@{
+                $null = $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Verdächtige Kommandozeile' -Message "Verdächtige Parameter erkannt bei $($p.Name)." -Score $s -Data ([ordered]@{
                             process = $p
                             hits    = $hits
-                        }))) | Out-Null
+                        })))
             }
         }
     }
@@ -514,7 +548,7 @@ function Measure-SnapshotRisk {
             if ($a.Name -and ($oldAdmins -notcontains $a.Name)) {
                 $delta.new_admins += $a
                 $score += 90
-                $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Neuer lokaler Administrator' -Message "Neuer Admin seit Baseline: $($a.Name)" -Score 90 -Data $a)) | Out-Null
+                $null = $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Neuer lokaler Administrator' -Message "Neuer Admin seit Baseline: $($a.Name)" -Score 90 -Data $a))
             }
         }
 
@@ -559,7 +593,7 @@ function Measure-SnapshotRisk {
 
     [ordered]@{
         time          = (Get-Date).ToString('o')
-        score         = [Math]::Min($score, 999)
+        score         = [Math]::Min($score, $MaxRiskScore)
         alert_count   = @($alerts).Count
         alerts        = $alerts
         delta         = $delta
@@ -585,11 +619,11 @@ function ConvertTo-HtmlTableRow {
             "<td>$(HtmlEncode $item.$p)</td>"
         }
 
-        $rows.Add("<tr>$($cells -join '')</tr>") | Out-Null
+        $null = $rows.Add("<tr>$($cells -join '')</tr>")
     }
 
     if ($rows.Count -eq 0) {
-        $rows.Add("<tr><td colspan='$($Props.Count)'>$(HtmlEncode $EmptyText)</td></tr>") | Out-Null
+        $null = $rows.Add("<tr><td colspan='$($Props.Count)'>$(HtmlEncode $EmptyText)</td></tr>")
     }
 
     return $rows
@@ -602,11 +636,7 @@ function Write-HudPortal {
     )
 
     $score = [int]$Analysis.score
-    $health = 'OK'
-
-    if ($score -ge 150) { $health = 'WARN' }
-    if ($score -ge 300) { $health = 'HIGH' }
-    if ($score -ge 500) { $health = 'CRITICAL' }
+    $health = Get-HealthFromScore -Score $score
 
     $lastHash = 'N/A'
     if (Test-Path -LiteralPath $TangleState) {
@@ -620,10 +650,10 @@ function Write-HudPortal {
 
     $alertRows = New-Object System.Collections.Generic.List[string]
     foreach ($a in @($Analysis.alerts | Sort-Object score -Descending | Select-Object -First 50)) {
-        $alertRows.Add("<tr><td>$(HtmlEncode $a.severity)</td><td>$(HtmlEncode $a.title)</td><td>$(HtmlEncode $a.message)</td><td>$(HtmlEncode $a.score)</td><td>$(HtmlEncode $a.time)</td></tr>") | Out-Null
+        $null = $alertRows.Add("<tr><td>$(HtmlEncode $a.severity)</td><td>$(HtmlEncode $a.title)</td><td>$(HtmlEncode $a.message)</td><td>$(HtmlEncode $a.score)</td><td>$(HtmlEncode $a.time)</td></tr>")
     }
     if ($alertRows.Count -eq 0) {
-        $alertRows.Add("<tr><td colspan='5'>Keine Alerts im aktuellen Lauf.</td></tr>") | Out-Null
+        $null = $alertRows.Add("<tr><td colspan='5'>Keine Alerts im aktuellen Lauf.</td></tr>")
     }
 
     $connRows = ConvertTo-HtmlTableRow -Items (@($Snapshot.connections) | Select-Object -First 100) -Props @('Process', 'PID', 'LocalAddress', 'LocalPort', 'RemoteAddress', 'RemotePort', 'State') -EmptyText 'Keine TCP-Verbindungen erfasst.'
@@ -641,7 +671,7 @@ function Write-HudPortal {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="$IntervalSeconds">
+  <meta http-equiv="refresh" content="$PortalRefreshSeconds">
   <title>AVA 3.14 NEXT LAYER</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -749,7 +779,7 @@ function Install-GuardianTask {
         throw 'PSCommandPath is empty. Script must be started with -File.'
     }
 
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy RemoteSigned -File `"$ScriptPath`" -RunOnce"
 
     $trigger = New-ScheduledTaskTrigger -Once `
         -At (Get-Date).AddMinutes(1) `
@@ -773,7 +803,7 @@ function Remove-GuardianTask {
     param()
 
     if ((Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) -and $PSCmdlet.ShouldProcess($TaskName, 'Unregister scheduled task')) {
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+        Unregister-ScheduledTask -TaskName $TaskName
 
         Write-JsonLine -Path $EventLog -Object ([ordered]@{
             time     = (Get-Date).ToString('o')
@@ -802,7 +832,7 @@ function Invoke-GuardianCycle {
     Write-JsonLine -Path $EventLog -Object ([ordered]@{
             time     = (Get-Date).ToString('o')
             category = 'snapshot'
-            severity = if ($analysis.score -ge 500) { 'CRITICAL' } elseif ($analysis.score -ge 300) { 'HIGH' } elseif ($analysis.score -ge 150) { 'MEDIUM' } else { 'LOW' }
+            severity = Get-SeverityFromScore -Score $analysis.score
             message  = "Snapshot verarbeitet: score=$($analysis.score) alerts=$($analysis.alert_count)"
         })
 
