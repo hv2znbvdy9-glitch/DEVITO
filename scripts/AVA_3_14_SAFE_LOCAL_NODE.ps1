@@ -38,6 +38,10 @@ $TangleLog = Join-Path $LogDir 'tangle.jsonl'
 $TangleState = Join-Path $StateDir 'tangle_state.json'
 $BaselinePath = Join-Path $StateDir 'baseline.json'
 $PortalHtml = Join-Path $PortalDir 'index.html'
+$PortalRefreshSeconds = 60
+$MaxPortalAlerts = 50
+$MaxRiskScore = 999
+$CoreSentence = 'Fakten vor Angst. Baseline vor Chaos. Sichtbarkeit vor Kontrolle.'
 
 $RiskPorts = @(21, 23, 135, 139, 445, 3389, 5985, 5986)
 
@@ -57,6 +61,17 @@ $SuspiciousPatterns = @(
     'bitsadmin',
     'certutil',
     'mshta'
+)
+
+$SuspiciousProcessNames = @(
+    'powershell.exe',
+    'pwsh.exe',
+    'cmd.exe',
+    'wscript.exe',
+    'cscript.exe',
+    'mshta.exe',
+    'rundll32.exe',
+    'regsvr32.exe'
 )
 
 # =========================
@@ -187,7 +202,7 @@ function ConvertTo-TableRow {
         $null = $rows.Add("<tr><td colspan='$($Props.Count)'>$(HtmlEncode $EmptyText)</td></tr>")
     }
 
-    return $rows
+    return $rows.ToArray()
 }
 
 # =========================
@@ -299,6 +314,13 @@ function Get-WlanNetworksSafe {
         return @([pscustomobject]@{ Error = $_.Exception.Message })
     }
 
+    if ($LASTEXITCODE -ne 0) {
+        return @([pscustomobject]@{
+                Error = "netsh wlan show networks mode=bssid failed with exit code $LASTEXITCODE (z.B. WLAN deaktiviert, WLAN-Dienst aus oder kein WLAN-Adapter vorhanden)."
+                Raw   = $raw.Trim()
+            })
+    }
+
     $items = New-Object System.Collections.Generic.List[object]
     $ssid = $null
     $auth = $null
@@ -340,7 +362,7 @@ function Get-WlanNetworksSafe {
         }
     }
 
-    return $items
+    return $items.ToArray()
 }
 
 function Get-NetworkLocalSafe {
@@ -471,11 +493,11 @@ function Measure-SnapshotRisk {
             $procName = ([string]$p.Name).ToLowerInvariant()
         }
 
-        if ($procName -in @('powershell.exe', 'pwsh.exe', 'cmd.exe', 'wscript.exe', 'cscript.exe', 'mshta.exe', 'rundll32.exe', 'regsvr32.exe')) {
-            $hits = @()
+        if ($procName -in $SuspiciousProcessNames) {
+            $hits = New-Object System.Collections.Generic.List[string]
             foreach ($pattern in $SuspiciousPatterns) {
                 if ($cmd.Contains($pattern)) {
-                    $hits += $pattern
+                    $null = $hits.Add($pattern)
                 }
             }
 
@@ -483,7 +505,7 @@ function Measure-SnapshotRisk {
                 $score += 85
                 $null = $alerts.Add((Add-Alert -Severity 'HIGH' -Title 'Verdächtige Kommandozeile' -Message "Verdächtige Parameter erkannt bei $($p.Name)." -Score 85 -Data ([ordered]@{
                             process = $p
-                            hits    = $hits
+                            hits    = $hits.ToArray()
                         })))
             }
         }
@@ -553,12 +575,12 @@ function Measure-SnapshotRisk {
 
     [ordered]@{
         time          = (Get-Date).ToString('o')
-        score         = [Math]::Min($score, 999)
+        score         = [Math]::Min($score, $MaxRiskScore)
         alert_count   = @($alerts).Count
         alerts        = $alerts
         delta         = $delta
         principles    = 'LOCAL / DEFENSIVE / READ-ONLY / NO AUTO-SPREAD'
-        core_sentence = 'Fakten vor Angst. Baseline vor Chaos. Sichtbarkeit vor Kontrolle.'
+        core_sentence = $CoreSentence
     }
 }
 
@@ -588,7 +610,7 @@ function Write-Portal {
         }
     }
 
-    $alertRows = foreach ($a in @($Analysis.alerts | Sort-Object score -Descending | Select-Object -First 50)) {
+    $alertRows = foreach ($a in @($Analysis.alerts | Sort-Object score -Descending | Select-Object -First $MaxPortalAlerts)) {
         "<tr><td>$(HtmlEncode $a.severity)</td><td>$(HtmlEncode $a.title)</td><td>$(HtmlEncode $a.message)</td><td>$(HtmlEncode $a.score)</td><td>$(HtmlEncode $a.time)</td></tr>"
     }
     if (-not $alertRows) {
@@ -609,7 +631,7 @@ function Write-Portal {
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="$PortalRefreshSeconds">
 <title>AVA 3.14 SAFE LOCAL NODE</title>
 <style>
 :root{--bg:#05080c;--panel:#0c1520dd;--line:#17384f;--green:#19ff8f;--blue:#22a7ff;--text:#eaf6ff;--muted:#8fa3ad;--warn:#ffcc66;--danger:#ff5d6c}
@@ -652,7 +674,7 @@ pre{white-space:pre-wrap;word-break:break-word;color:#d8f5ff}
 <div class="card"><h2>WLAN</h2><div class="big">$(@($Snapshot.wlan).Count)</div><div class="small">Visible BSSID</div></div>
 <div class="card"><h2>Neighbors</h2><div class="big">$(@($Snapshot.network.neighbors).Count)</div><div class="small">LAN / ARP</div></div>
 </div>
-<div class="section legal"><b>Kernsatz:</b> Fakten vor Angst. Baseline vor Chaos. Sichtbarkeit vor Kontrolle.<br>Dieses System ist lokal, defensiv und read-only. Keine Angriffe, keine Exploits, keine fremden Ziele, kein Auto-Spread.</div>
+<div class="section legal"><b>Kernsatz:</b> $(HtmlEncode $CoreSentence)<br>Dieses System ist lokal, defensiv und read-only. Keine Angriffe, keine Exploits, keine fremden Ziele, kein Auto-Spread.</div>
 <div class="section card"><h2>Tangle Hash Chain</h2><div class="small">Letzter Hash:</div><div class="hash">$(HtmlEncode $lastHash)</div></div>
 
 <div class="section card"><h2>Alerts</h2><div class="table-wrap"><table><tr><th>Severity</th><th>Title</th><th>Message</th><th>Score</th><th>Time</th></tr>$($alertRows -join "`n")</table></div></div>
@@ -712,10 +734,14 @@ function Invoke-Ava {
     Write-Host "Root:   $Root" -ForegroundColor Cyan
     Write-Host "Portal: $PortalHtml" -ForegroundColor Cyan
     Write-Host ''
-    Write-Host 'Fakten vor Angst. Baseline vor Chaos. Sichtbarkeit vor Kontrolle.' -ForegroundColor Green
+    Write-Host $CoreSentence -ForegroundColor Green
 
-    Start-Process $PortalHtml
+    try {
+        Start-Process $PortalHtml -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Portal konnte nicht automatisch geöffnet werden: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 Invoke-Ava
-
