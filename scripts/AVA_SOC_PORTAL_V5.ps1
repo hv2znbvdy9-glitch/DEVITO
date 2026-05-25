@@ -47,7 +47,7 @@ $SuspiciousPowerShell = @(
     'encodedcommand',
     'downloadstring',
     'invoke-expression',
-    'iex ',
+    'iex',
     '-nop',
     'noprofile',
     '-w hidden',
@@ -479,17 +479,17 @@ function Measure-SnapshotRisk {
     }
 
     foreach ($process in @($Snapshot.processes)) {
-        $commandLine = ''
-        if ($process.CommandLine) {
-            $commandLine = ([string]$process.CommandLine).ToLowerInvariant()
-        }
-
         $processName = ''
         if ($process.Name) {
             $processName = ([string]$process.Name).ToLowerInvariant()
         }
 
         if ($processName -in $SuspiciousProcessNames) {
+            $commandLine = ''
+            if ($process.CommandLine) {
+                $commandLine = ([string]$process.CommandLine).ToLowerInvariant()
+            }
+
             $hits = New-Object System.Collections.Generic.List[string]
 
             foreach ($signature in $SuspiciousPowerShell) {
@@ -828,8 +828,9 @@ function Install-AvaTask {
         -Execute 'powershell.exe' `
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
 
+    $scheduledIntervalSeconds = [Math]::Max($IntervalSeconds, 60)
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
-    $trigger.Repetition.Interval = 'PT1M'
+    $trigger.Repetition.Interval = [System.Xml.XmlConvert]::ToString((New-TimeSpan -Seconds $scheduledIntervalSeconds))
     $trigger.Repetition.Duration = 'P3650D'
 
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
