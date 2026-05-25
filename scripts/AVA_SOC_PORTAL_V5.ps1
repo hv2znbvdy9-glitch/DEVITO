@@ -79,7 +79,7 @@ function Initialize-DirectoryPath {
     }
 }
 
-function Ensure-Dirs {
+function Initialize-PortalLayout {
     foreach ($directory in @($Root, $LogDir, $StateDir, $ReportDir)) {
         Initialize-DirectoryPath -Path $directory
     }
@@ -180,7 +180,7 @@ function Add-Alert {
     return $alert
 }
 
-function Make-Rows {
+function ConvertTo-TableRow {
     param(
         [AllowNull()][object[]]$Items,
         [Parameter(Mandatory)][string[]]$Props,
@@ -395,7 +395,7 @@ function Get-FirewallSafe {
     }
 }
 
-function New-Snapshot {
+function Get-Snapshot {
     [ordered]@{
         time        = (Get-Date).ToString('o')
         computer    = $env:COMPUTERNAME
@@ -413,7 +413,7 @@ function New-Snapshot {
     }
 }
 
-function Load-Baseline {
+function Get-Baseline {
     if (Test-Path -LiteralPath $BaselinePath) {
         try {
             return Get-Content -LiteralPath $BaselinePath -Raw | ConvertFrom-Json
@@ -434,7 +434,7 @@ function Save-Baseline {
         Set-Content -LiteralPath $BaselinePath -Encoding UTF8
 }
 
-function Analyze-Snapshot {
+function Measure-SnapshotRisk {
     param([Parameter(Mandatory)][object]$Snapshot)
 
     $alerts = New-Object System.Collections.Generic.List[object]
@@ -508,7 +508,7 @@ function Analyze-Snapshot {
         }
     }
 
-    $baseline = Load-Baseline
+    $baseline = Get-Baseline
     $delta = [ordered]@{
         baseline_exists = $null -ne $baseline
         new_admins      = @()
@@ -556,7 +556,7 @@ function Analyze-Snapshot {
     }
 }
 
-function New-Portal {
+function Write-Portal {
     param(
         [Parameter(Mandatory)][object]$Snapshot,
         [Parameter(Mandatory)][object]$Analysis
@@ -585,13 +585,13 @@ function New-Portal {
         $alertRows = "<tr><td colspan='5'>Keine Alerts gefunden.</td></tr>"
     }
 
-    $firewallRows = Make-Rows -Items @($Snapshot.firewall) -Props @('Name', 'Enabled', 'DefaultInboundAction', 'DefaultOutboundAction')
-    $connectionRows = Make-Rows -Items (@($Snapshot.connections) | Select-Object -First $MaxTableRows) -Props @('Process', 'PID', 'LocalAddress', 'LocalPort', 'RemoteAddress', 'RemotePort', 'State')
-    $processRows = Make-Rows -Items (@($Snapshot.processes) | Select-Object -First $MaxTableRows) -Props @('Name', 'ProcessId', 'ParentProcessId', 'ExecutablePath', 'CommandLine')
-    $wlanRows = Make-Rows -Items (@($Snapshot.wlan) | Select-Object -First $MaxTableRows) -Props @('SSID', 'BSSID', 'Authentication', 'Encryption', 'Signal', 'RadioType', 'Channel')
-    $neighborRows = Make-Rows -Items (@($Snapshot.network.neighbors) | Select-Object -First $MaxTableRows) -Props @('InterfaceAlias', 'IPAddress', 'LinkLayerAddress', 'State')
-    $adminRows = Make-Rows -Items @($Snapshot.admins) -Props @('Name', 'ObjectClass', 'PrincipalSource')
-    $taskRows = Make-Rows -Items (@($Snapshot.tasks) | Select-Object -First $MaxTableRows) -Props @('TaskName', 'TaskPath', 'State')
+    $firewallRows = ConvertTo-TableRow -Items @($Snapshot.firewall) -Props @('Name', 'Enabled', 'DefaultInboundAction', 'DefaultOutboundAction')
+    $connectionRows = ConvertTo-TableRow -Items (@($Snapshot.connections) | Select-Object -First $MaxTableRows) -Props @('Process', 'PID', 'LocalAddress', 'LocalPort', 'RemoteAddress', 'RemotePort', 'State')
+    $processRows = ConvertTo-TableRow -Items (@($Snapshot.processes) | Select-Object -First $MaxTableRows) -Props @('Name', 'ProcessId', 'ParentProcessId', 'ExecutablePath', 'CommandLine')
+    $wlanRows = ConvertTo-TableRow -Items (@($Snapshot.wlan) | Select-Object -First $MaxTableRows) -Props @('SSID', 'BSSID', 'Authentication', 'Encryption', 'Signal', 'RadioType', 'Channel')
+    $neighborRows = ConvertTo-TableRow -Items (@($Snapshot.network.neighbors) | Select-Object -First $MaxTableRows) -Props @('InterfaceAlias', 'IPAddress', 'LinkLayerAddress', 'State')
+    $adminRows = ConvertTo-TableRow -Items @($Snapshot.admins) -Props @('Name', 'ObjectClass', 'PrincipalSource')
+    $taskRows = ConvertTo-TableRow -Items (@($Snapshot.tasks) | Select-Object -First $MaxTableRows) -Props @('TaskName', 'TaskPath', 'State')
 
     @"
 <!doctype html>
@@ -784,10 +784,10 @@ verdächtige PowerShell-Parameter oder deaktivierter Defender.
 }
 
 function Invoke-AvaSoc {
-    Ensure-Dirs
+    Initialize-PortalLayout
 
-    $snapshot = New-Snapshot
-    $analysis = Analyze-Snapshot -Snapshot $snapshot
+    $snapshot = Get-Snapshot
+    $analysis = Measure-SnapshotRisk -Snapshot $snapshot
 
     Write-JsonLine -Path $EventLog -Object $snapshot
 
@@ -806,7 +806,7 @@ function Invoke-AvaSoc {
             time     = $snapshot.time
         })
 
-    New-Portal -Snapshot $snapshot -Analysis $analysis
+    Write-Portal -Snapshot $snapshot -Analysis $analysis
 
     Write-Host 'AVA SOC PORTAL V5 erstellt.' -ForegroundColor Green
     Write-Host "Score: $($analysis.score)" -ForegroundColor Yellow
@@ -815,11 +815,14 @@ function Invoke-AvaSoc {
 }
 
 function Install-AvaTask {
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+
     if (-not $ScriptPath) {
         throw 'Bitte zuerst als .ps1 speichern.'
     }
 
-    Ensure-Dirs
+    Initialize-PortalLayout
 
     $action = New-ScheduledTaskAction `
         -Execute 'powershell.exe' `
@@ -831,20 +834,27 @@ function Install-AvaTask {
 
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
 
-    Register-ScheduledTask `
-        -TaskName $TaskName `
-        -Action $action `
-        -Trigger $trigger `
-        -Principal $principal `
-        -Force | Out-Null
+    if ($PSCmdlet.ShouldProcess($TaskName, 'Register scheduled task')) {
+        Register-ScheduledTask `
+            -TaskName $TaskName `
+            -Action $action `
+            -Trigger $trigger `
+            -Principal $principal `
+            -Force | Out-Null
+    }
 
     Write-Host "Task installiert: $TaskName" -ForegroundColor Green
 }
 
-function Remove-AvaTask {
+function Uninstall-AvaTask {
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($task) {
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+        if ($PSCmdlet.ShouldProcess($TaskName, 'Unregister scheduled task')) {
+            Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+        }
         Write-Host "Task entfernt: $TaskName" -ForegroundColor Yellow
     }
     else {
@@ -858,7 +868,7 @@ if ($InstallTask) {
 }
 
 if ($RemoveTask) {
-    Remove-AvaTask
+    Uninstall-AvaTask
     exit
 }
 
