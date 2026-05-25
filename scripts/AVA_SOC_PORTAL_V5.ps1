@@ -214,9 +214,14 @@ function Get-WlanNetworksSafe {
     }
 
     if ($LASTEXITCODE -ne 0) {
+        $rawPreview = $raw.Trim()
+        if ($rawPreview.Length -gt 500) {
+            $rawPreview = $rawPreview.Substring(0, 500)
+        }
+
         return @([pscustomobject]@{
                 Error = "netsh wlan show networks mode=bssid failed with exit code $LASTEXITCODE."
-                Raw   = $raw.Trim()
+                Raw   = $rawPreview
             })
     }
 
@@ -835,8 +840,8 @@ function Install-AvaTask {
         -Execute 'powershell.exe' `
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
 
-    $ScheduledIntervalSeconds = [Math]::Max($IntervalSeconds, 60)
-    $RepetitionInterval = "PT$($ScheduledIntervalSeconds)S"
+    $TaskIntervalSeconds = [Math]::Max($IntervalSeconds, 60)
+    $RepetitionInterval = "PT$($TaskIntervalSeconds)S"
     $RepetitionDuration = "P$($TaskRepetitionDurationDays)D"
 
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($TaskStartDelayMinutes)
