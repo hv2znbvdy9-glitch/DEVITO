@@ -87,7 +87,7 @@ function Initialize-PortalLayout {
     }
 }
 
-function HtmlEncode {
+function ConvertTo-HtmlEncoded {
     param([AllowNull()][object]$Value)
 
     if ($null -eq $Value) {
@@ -97,7 +97,7 @@ function HtmlEncode {
     return [System.Net.WebUtility]::HtmlEncode([string]$Value)
 }
 
-function Sha256Text {
+function Get-Sha256Hash {
     param([Parameter(Mandatory)][string]$Text)
 
     $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -149,7 +149,7 @@ function Write-Tangle {
     }
 
     $raw = $chainEvent | ConvertTo-Json -Depth 30 -Compress
-    $hash = Sha256Text -Text $raw
+    $hash = Get-Sha256Hash -Text $raw
     $chainEvent.hash = $hash
 
     Write-JsonLine -Path $TangleLog -Object $chainEvent
@@ -193,13 +193,13 @@ function ConvertTo-TableRow {
 
     foreach ($item in @($Items)) {
         $cells = foreach ($property in $Props) {
-            "<td>$(HtmlEncode $item.$property)</td>"
+            "<td>$(ConvertTo-HtmlEncoded $item.$property)</td>"
         }
         $null = $rows.Add("<tr>$($cells -join '')</tr>")
     }
 
     if ($rows.Count -eq 0) {
-        $null = $rows.Add("<tr><td colspan='$($Props.Count)'>$(HtmlEncode $EmptyText)</td></tr>")
+        $null = $rows.Add("<tr><td colspan='$($Props.Count)'>$(ConvertTo-HtmlEncoded $EmptyText)</td></tr>")
     }
 
     return $rows.ToArray()
@@ -591,7 +591,7 @@ function Write-Portal {
     }
 
     $alertRows = foreach ($alert in @($Analysis.alerts | Sort-Object score -Descending | Select-Object -First $MaxPortalAlerts)) {
-        "<tr><td>$(HtmlEncode $alert.severity)</td><td>$(HtmlEncode $alert.title)</td><td>$(HtmlEncode $alert.message)</td><td>$(HtmlEncode $alert.score)</td><td>$(HtmlEncode $alert.time)</td></tr>"
+        "<tr><td>$(ConvertTo-HtmlEncoded $alert.severity)</td><td>$(ConvertTo-HtmlEncoded $alert.title)</td><td>$(ConvertTo-HtmlEncoded $alert.message)</td><td>$(ConvertTo-HtmlEncoded $alert.score)</td><td>$(ConvertTo-HtmlEncoded $alert.time)</td></tr>"
     }
     if (-not $alertRows) {
         $alertRows = "<tr><td colspan='5'>Keine Alerts gefunden.</td></tr>"
@@ -673,14 +673,14 @@ th{color:var(--blue);text-transform:uppercase;letter-spacing:1px}
 </div>
 
 <div class="section legal">
-<b>Kernsatz:</b> $(HtmlEncode $CoreSentence)<br>
+<b>Kernsatz:</b> $(ConvertTo-HtmlEncoded $CoreSentence)<br>
 Dieses System ist lokal, defensiv und read-only. Keine Angriffe, keine Exploits, keine fremden Ziele.
 </div>
 
 <div class="section card">
 <h2>Tangle Hash Chain</h2>
 <div class="small">Letzter Hash:</div>
-<div class="hash">$(HtmlEncode $lastHash)</div>
+<div class="hash">$(ConvertTo-HtmlEncoded $lastHash)</div>
 </div>
 
 <div class="section card">
@@ -786,7 +786,7 @@ verdächtige PowerShell-Parameter oder deaktivierter Defender.
 
 <div class="footer">
 <div>AVA SOC PORTAL V5 · THE CYBER BITE HUD STYLE</div>
-<div>$(HtmlEncode $Snapshot.time)</div>
+<div>$(ConvertTo-HtmlEncoded $Snapshot.time)</div>
 </div>
 
 </div>
