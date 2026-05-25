@@ -70,6 +70,8 @@ $MaxPortalAlerts = 30
 $MaxTableRows = 80
 $MaxRiskScore = 999
 $CoreSentence = 'Fakten vor Angst. Baseline vor Chaos. Sichtbarkeit vor Kontrolle.'
+$TaskStartDelayMinutes = 1
+$TaskRepetitionDurationDays = 3650
 
 function Initialize-DirectoryPath {
     param([Parameter(Mandatory)][string]$Path)
@@ -829,9 +831,12 @@ function Install-AvaTask {
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
 
     $scheduledIntervalSeconds = [Math]::Max($IntervalSeconds, 60)
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
-    $trigger.Repetition.Interval = [System.Xml.XmlConvert]::ToString((New-TimeSpan -Seconds $scheduledIntervalSeconds))
-    $trigger.Repetition.Duration = 'P3650D'
+    $repetitionInterval = "PT$($scheduledIntervalSeconds)S"
+    $repetitionDuration = "P$($TaskRepetitionDurationDays)D"
+
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($TaskStartDelayMinutes)
+    $trigger.Repetition.Interval = $repetitionInterval
+    $trigger.Repetition.Duration = $repetitionDuration
 
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
 
