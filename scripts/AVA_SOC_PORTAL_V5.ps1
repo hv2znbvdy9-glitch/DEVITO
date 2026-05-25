@@ -333,13 +333,18 @@ function Get-ProcessesSafe {
 
 function Get-ConnectionsSafe {
     try {
-        $processMap = @{}
+        $connections = @(Get-NetTCPConnection -State Established)
+        if ($connections.Count -eq 0) {
+            return @()
+        }
 
-        Get-Process | ForEach-Object {
+        $owningProcesses = @($connections | Select-Object -ExpandProperty OwningProcess -Unique)
+        $processMap = @{}
+        Get-Process -Id $owningProcesses -ErrorAction SilentlyContinue | ForEach-Object {
             $processMap[$_.Id] = $_.ProcessName
         }
 
-        Get-NetTCPConnection -State Established |
+        $connections |
             ForEach-Object {
                 [pscustomobject]@{
                     LocalAddress  = $_.LocalAddress
@@ -830,13 +835,13 @@ function Install-AvaTask {
         -Execute 'powershell.exe' `
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
 
-    $scheduledIntervalSeconds = [Math]::Max($IntervalSeconds, 60)
-    $repetitionInterval = "PT$($scheduledIntervalSeconds)S"
-    $repetitionDuration = "P$($TaskRepetitionDurationDays)D"
+    $ScheduledIntervalSeconds = [Math]::Max($IntervalSeconds, 60)
+    $RepetitionInterval = "PT$($ScheduledIntervalSeconds)S"
+    $RepetitionDuration = "P$($TaskRepetitionDurationDays)D"
 
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($TaskStartDelayMinutes)
-    $trigger.Repetition.Interval = $repetitionInterval
-    $trigger.Repetition.Duration = $repetitionDuration
+    $trigger.Repetition.Interval = $RepetitionInterval
+    $trigger.Repetition.Duration = $RepetitionDuration
 
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
 
