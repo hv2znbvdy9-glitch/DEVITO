@@ -125,7 +125,7 @@ function Get-PowerShellProcessInfo {
     $bad = @(
         '-enc', 'encodedcommand', '-nop', 'noprofile',
         '-w hidden', 'windowstyle hidden',
-        'downloadstring', 'invoke-expression', 'iex ',
+        'downloadstring', 'invoke-expression', 'iex',
         'bypass', '-ep bypass', 'frombase64string'
     )
 
@@ -204,7 +204,10 @@ function Get-Admins {
             return Get-LocalGroupMember -Group $adminGroup.Name |
                 Select-Object Name, ObjectClass, PrincipalSource
         }
+    }
+    catch {}
 
+    try {
         return Get-LocalGroupMember -Group 'Administratoren' |
             Select-Object Name, ObjectClass, PrincipalSource
     }
@@ -334,7 +337,7 @@ function Compare-WithBaseline {
         }
     }
 
-    # FTP, Telnet, RPC, NetBIOS, SMB, RDP, WinRM
+    # FTP, Telnet, RPC, NetBIOS, SMB, RDP, WinRM (5985 HTTP / 5986 HTTPS)
     $riskPorts = @(21, 23, 135, 139, 445, 3389, 5985, 5986)
     foreach ($c in $Snapshot.network.tcp) {
         if ($riskPorts -contains [int]$c.local_port -or $riskPorts -contains [int]$c.remote_port) {
