@@ -31,6 +31,7 @@ $AlertLog     = Join-Path $LogDir 'alerts.jsonl'
 $BaselineFile = Join-Path $StateDir 'baseline_core.json'
 $TangleState  = Join-Path $StateDir 'tangle_state.json'
 $PortalFile   = Join-Path $ReportDir 'ava_core_portal.html'
+$MaxTcpDisplayRows = 50
 
 foreach ($d in @($Root, $LogDir, $StateDir, $ReportDir)) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
@@ -198,6 +199,12 @@ function Get-NetworkInfo {
 
 function Get-Admins {
     try {
+        $adminGroup = Get-LocalGroup | Where-Object { $_.SID.Value -eq 'S-1-5-32-544' } | Select-Object -First 1
+        if ($adminGroup) {
+            return Get-LocalGroupMember -Group $adminGroup.Name |
+                Select-Object Name, ObjectClass, PrincipalSource
+        }
+
         return Get-LocalGroupMember -Group 'Administratoren' |
             Select-Object Name, ObjectClass, PrincipalSource
     }
@@ -327,6 +334,7 @@ function Compare-WithBaseline {
         }
     }
 
+    # FTP, Telnet, RPC, NetBIOS, SMB, RDP, WinRM
     $riskPorts = @(21, 23, 135, 139, 445, 3389, 5985, 5986)
     foreach ($c in $Snapshot.network.tcp) {
         if ($riskPorts -contains [int]$c.local_port -or $riskPorts -contains [int]$c.remote_port) {
@@ -362,7 +370,7 @@ function Build-Portal {
         $psRows = @("<tr><td colspan='4'>Keine laufenden PowerShell-Prozesse erkannt.</td></tr>")
     }
 
-    $tcpRows = foreach ($c in ($Snapshot.network.tcp | Select-Object -First 50)) {
+    $tcpRows = foreach ($c in ($Snapshot.network.tcp | Select-Object -First $MaxTcpDisplayRows)) {
         "<tr><td>$(HtmlEncode $c.process)</td><td>$(HtmlEncode $c.pid)</td><td>$(HtmlEncode $c.local_port)</td><td>$(HtmlEncode $c.remote_address)</td><td>$(HtmlEncode $c.remote_port)</td></tr>"
     }
     if (-not $tcpRows) {
@@ -417,7 +425,7 @@ function Build-Portal {
 </div>
 
 <div class="section">
-  <h2>TCP (Top 50)</h2>
+  <h2>TCP (Top $(HtmlEncode $MaxTcpDisplayRows))</h2>
   <table>
     <thead><tr><th>Prozess</th><th>PID</th><th>LocalPort</th><th>RemoteAddress</th><th>RemotePort</th></tr></thead>
     <tbody>$($tcpRows -join '')</tbody>
