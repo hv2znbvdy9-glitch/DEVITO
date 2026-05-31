@@ -13,8 +13,8 @@ Nur Sichtbarkeit + Report
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
 
-$now = Get-Date -Format 'yyyyMMdd_HHmmss'
-$root = Join-Path $env:USERPROFILE "Desktop\AVA_SPYWARE_RISK_AUDIT_$now"
+$auditTimestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$root = Join-Path $env:USERPROFILE "Desktop\AVA_SPYWARE_RISK_AUDIT_$auditTimestamp"
 $logDir = Join-Path $root 'Logs'
 $reportDir = Join-Path $root 'Reports'
 $stateDir = Join-Path $root 'State'
@@ -191,8 +191,8 @@ try {
     $processes = Get-CimInstance Win32_Process | Select-Object ProcessId, Name, ExecutablePath, CommandLine
 
     foreach ($process in $processes) {
-        $cmd = "$($process.Name) $($process.CommandLine)".ToLowerInvariant()
-        $hits = @($suspiciousProcessPatterns | Where-Object { $cmd.Contains($_) })
+        $normalizedCommandLine = "$($process.Name) $($process.CommandLine)".ToLowerInvariant()
+        $hits = @($suspiciousProcessPatterns | Where-Object { $normalizedCommandLine.Contains($_) })
 
         if ($hits.Count -gt 0) {
             Add-Finding -Category 'Prozesse' -Severity 'WARN' -Title 'Auffälliger Prozess-Hinweis' -Message "PID $($process.ProcessId) | $($process.Name) | Treffer: $($hits -join ', ')" -Recommendation 'Nicht automatisch löschen. Erst prüfen, ob legitim.'
@@ -274,9 +274,9 @@ foreach ($scanDir in $scanDirs) {
     try {
         Get-ChildItem -Path $scanDir -File -Recurse -ErrorAction SilentlyContinue |
             Where-Object {
-                $name = $_.Name.ToLowerInvariant()
-                foreach ($needle in $suspiciousNames) {
-                    if ($name.Contains($needle)) { return $true }
+                $normalizedFileName = $_.Name.ToLowerInvariant()
+                foreach ($searchTerm in $suspiciousNames) {
+                    if ($normalizedFileName.Contains($searchTerm)) { return $true }
                 }
                 return $false
             } |
@@ -362,7 +362,7 @@ Write-Tangle -Type 'AVA_SPYWARE_RISK_AUDIT' -Summary 'Read-Only Audit abgeschlos
 } | ConvertTo-Json -Depth 10 | Set-Content -Path $jsonReport -Encoding UTF8
 
 # EXPORT TXT
-$txt = @(
+$textReportLines = @(
     'AVA SPYWARE RISK AUDIT',
     "Zeit: $(Get-Date)",
     "Computer: $env:COMPUTERNAME",
@@ -376,13 +376,13 @@ $txt = @(
 )
 
 foreach ($finding in $findings) {
-    $txt += "[$($finding.Severity)] $($finding.Category) - $($finding.Title)"
-    $txt += $finding.Message
-    $txt += "Empfehlung: $($finding.Recommendation)"
-    $txt += ''
+    $textReportLines += "[$($finding.Severity)] $($finding.Category) - $($finding.Title)"
+    $textReportLines += $finding.Message
+    $textReportLines += "Empfehlung: $($finding.Recommendation)"
+    $textReportLines += ''
 }
 
-$txt -join "`r`n" | Set-Content -Path $txtReport -Encoding UTF8
+$textReportLines -join "`r`n" | Set-Content -Path $txtReport -Encoding UTF8
 
 # HTML
 $rows = foreach ($finding in $findings) {
