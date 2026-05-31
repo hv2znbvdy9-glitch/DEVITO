@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 AVA SPYWARE RISK AUDIT
 Lokal / Defensiv / Read-Only
@@ -86,7 +86,7 @@ function Write-Tangle {
         }
     }
 
-    $event = [ordered]@{
+    $tangleEvent = [ordered]@{
         time          = (Get-Date).ToString('o')
         computer      = $env:COMPUTERNAME
         user          = $env:USERNAME
@@ -96,11 +96,11 @@ function Write-Tangle {
         data          = $Data
     }
 
-    $raw = $event | ConvertTo-Json -Depth 20 -Compress
+    $raw = $tangleEvent | ConvertTo-Json -Depth 20 -Compress
     $hash = Get-Sha256Text -Text $raw
-    $event.hash = $hash
+    $tangleEvent.hash = $hash
 
-    $event | ConvertTo-Json -Depth 20 -Compress | Add-Content -Path $tangleLog -Encoding UTF8
+    $tangleEvent | ConvertTo-Json -Depth 20 -Compress | Add-Content -Path $tangleLog -Encoding UTF8
 
     [pscustomobject]@{
         updated   = (Get-Date).ToString('o')
