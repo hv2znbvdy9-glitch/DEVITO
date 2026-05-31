@@ -123,7 +123,7 @@ $MindNodes = New-Object System.Collections.Generic.List[object]
 $MindLinks = New-Object System.Collections.Generic.List[object]
 $CenterId = "AVA_CORE"
 $CenterLabel = "AVA Symbolic Memory"
-$MindNodes.Add([ordered]@{ id = $CenterId; label = $CenterLabel; group = "core" }) | Out-Null
+[void]$MindNodes.Add([ordered]@{ id = $CenterId; label = $CenterLabel; group = "core" })
 
 $CategorySeen = @{}
 foreach ($m in $Memories) {
@@ -131,13 +131,13 @@ foreach ($m in $Memories) {
     $categoryId = "cat:" + $m.category
 
     if (-not $CategorySeen.ContainsKey($categoryId)) {
-        $MindNodes.Add([ordered]@{ id = $categoryId; label = $m.category; group = "category" }) | Out-Null
-        $MindLinks.Add([ordered]@{ source = $CenterId; target = $categoryId }) | Out-Null
+        [void]$MindNodes.Add([ordered]@{ id = $categoryId; label = $m.category; group = "category" })
+        [void]$MindLinks.Add([ordered]@{ source = $CenterId; target = $categoryId })
         $CategorySeen[$categoryId] = $true
     }
 
-    $MindNodes.Add([ordered]@{ id = $memoryId; label = $m.title; group = "memory" }) | Out-Null
-    $MindLinks.Add([ordered]@{ source = $categoryId; target = $memoryId }) | Out-Null
+    [void]$MindNodes.Add([ordered]@{ id = $memoryId; label = $m.title; group = "memory" })
+    [void]$MindLinks.Add([ordered]@{ source = $categoryId; target = $memoryId })
 }
 
 $MindmapData = [ordered]@{
@@ -145,7 +145,7 @@ $MindmapData = [ordered]@{
     links = @($MindLinks)
 }
 
-$MindmapJson = ($MindmapData | ConvertTo-Json -Depth 10 -Compress) -replace '</', '<\/'
+$MindmapJson = ($MindmapData | ConvertTo-Json -Depth 10 -Compress) -replace '</script', '<\/script'
 $GeneratedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
 
 $Html = @"
