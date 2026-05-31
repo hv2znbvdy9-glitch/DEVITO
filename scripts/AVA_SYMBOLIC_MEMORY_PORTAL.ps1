@@ -145,7 +145,7 @@ $MindmapData = [ordered]@{
     links = @($MindLinks)
 }
 
-$MindmapJson = ($MindmapData | ConvertTo-Json -Depth 10 -Compress) -replace '</script', '<\/script'
+$MindmapJson = ($MindmapData | ConvertTo-Json -Depth 10 -Compress) -replace '</', '<\/' -replace ']]>', ']]\>'
 $GeneratedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
 
 $Html = @"
