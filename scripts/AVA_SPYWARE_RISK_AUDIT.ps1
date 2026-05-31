@@ -155,7 +155,7 @@ catch {
 
 # ADMINS
 try {
-    $admins = @(Get-LocalGroupMember Administrators)
+    $admins = @(Get-LocalGroupMember -SID 'S-1-5-32-544')
     foreach ($admin in $admins) {
         Add-Finding -Category 'Konten' -Severity 'INFO' -Title 'Lokaler Administrator' -Message $admin.Name -Recommendation 'Nur notwendige Adminrechte behalten.'
     }
@@ -174,7 +174,7 @@ $suspiciousProcessPatterns = @(
     'encodedcommand',
     'downloadstring',
     'invoke-expression',
-    'iex ',
+    'iex',
     'mshta',
     'rundll32',
     'regsvr32',
@@ -253,6 +253,7 @@ $scanDirs = @(
 
 $suspiciousExtensions = @('*.apk', '*.ipa', '*.mobileconfig', '*.cer', '*.p12', '*.pfx')
 $suspiciousNames = @('spy', 'tracker', 'monitor', 'mdm', 'pegasus', 'stalker', 'stealth', 'keylog', 'remote', 'rat')
+$maxFileFindings = 50
 
 foreach ($scanDir in $scanDirs) {
     if (-not (Test-Path -LiteralPath $scanDir)) { continue }
@@ -260,7 +261,7 @@ foreach ($scanDir in $scanDirs) {
     foreach ($extension in $suspiciousExtensions) {
         try {
             Get-ChildItem -Path $scanDir -Filter $extension -File -Recurse -ErrorAction SilentlyContinue |
-                Select-Object -First 50 |
+                Select-Object -First $maxFileFindings |
                 ForEach-Object {
                     Add-Finding -Category 'Dateien' -Severity 'WARN' -Title 'Mobile/Profil-Datei gefunden' -Message $_.FullName -Recommendation 'Nur installieren/importieren, wenn Herkunft absolut vertrauenswürdig ist.'
                 }
@@ -279,7 +280,7 @@ foreach ($scanDir in $scanDirs) {
                 }
                 return $false
             } |
-            Select-Object -First 50 |
+            Select-Object -First $maxFileFindings |
             ForEach-Object {
                 Add-Finding -Category 'Dateien' -Severity 'INFO' -Title 'Dateiname mit Sicherheitsbezug' -Message $_.FullName -Recommendation 'Kontext prüfen. Treffer ist nicht automatisch gefährlich.'
             }
@@ -305,7 +306,7 @@ foreach ($backupPath in $iPhoneBackupPaths) {
 try {
     $hostsPath = Join-Path $env:SystemRoot 'System32\drivers\etc\hosts'
     if (Test-Path -LiteralPath $hostsPath) {
-        $hostsContent = @(Get-Content -Path $hostsPath -ErrorAction SilentlyContinue | Where-Object { $_ -and $_ -notmatch '^\s*#' })
+        $hostsContent = @(Get-Content -Path $hostsPath -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch '^\s*(#|$)' })
         if ($hostsContent.Count -gt 0) {
             Add-Finding -Category 'System' -Severity 'WARN' -Title 'Hosts-Datei enthält aktive Einträge' -Message "$($hostsContent.Count) aktive Zeilen" -Recommendation 'Prüfen, ob Umleitungen legitim sind.'
         }
@@ -452,7 +453,7 @@ $html = @"
       </tr>
     </thead>
     <tbody>
-      $($rows -join "`n")
+      $($rows -join "`r`n")
     </tbody>
   </table>
 
