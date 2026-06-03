@@ -7,7 +7,7 @@ Keine Angriffe
 Keine Exploits
 Keine Fremdscans
 Keine automatische Ausbreitung
-Keine Aenderungen am System
+Keine Änderungen am System
 
 Funktionen:
 - Host / MAC / IP Monitoring
