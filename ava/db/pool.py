@@ -55,6 +55,7 @@ class DatabasePool:
         self.redis_url = redis_url
         self.engine: Optional[AsyncEngine] = None
         self._redis: Any = None
+        self._tables_created: bool = False
 
     @staticmethod
     def _normalize_database_url(database_url: str) -> str:
@@ -83,6 +84,8 @@ class DatabasePool:
         async with self.engine.begin() as conn:
             await conn.run_sync(metadata.create_all)
 
+        self._tables_created = True
+
         if self.redis_url and self._redis is None:
             try:
                 from redis.asyncio import Redis
@@ -93,7 +96,7 @@ class DatabasePool:
                 self._redis = None
 
     async def _ensure_ready(self) -> None:
-        if self.engine is None:
+        if self.engine is None or not self._tables_created:
             await self.initialize_async()
 
     async def save_task(self, task: Dict[str, Any] | TaskModel) -> TaskModel:
