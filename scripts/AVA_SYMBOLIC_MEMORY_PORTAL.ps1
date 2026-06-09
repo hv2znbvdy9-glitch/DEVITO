@@ -1,3 +1,9 @@
+<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
 #requires -Version 5.1
 <#
 AVA SYMBOLIC MEMORY PORTAL

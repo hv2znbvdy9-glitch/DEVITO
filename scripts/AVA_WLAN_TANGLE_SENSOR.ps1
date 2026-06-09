@@ -1,4 +1,10 @@
-﻿#requires -RunAsAdministrator
+﻿<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
+#requires -RunAsAdministrator
 <#
 AVA WLAN TANGLE SENSOR v1 - DEFENSIVE / LOCAL / READ-ONLY
 - Visible WLANs via netsh wlan show networks mode=bssid

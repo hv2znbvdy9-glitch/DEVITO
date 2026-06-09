@@ -1,4 +1,10 @@
-﻿#requires -RunAsAdministrator
+﻿<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
+#requires -RunAsAdministrator
 <#
 AVA v3 - AUDIT ONLY (Read-Only / Local / Defensive)
 - Liest nur lokale Sicherheits-/Systeminformationen aus
