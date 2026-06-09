@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -56,6 +57,7 @@ class DatabasePool:
         self.engine: Optional[AsyncEngine] = None
         self._redis: Any = None
         self._tables_created: bool = False
+        self._init_lock: asyncio.Lock = asyncio.Lock()
 
     @staticmethod
     def _normalize_database_url(database_url: str) -> str:
@@ -66,8 +68,6 @@ class DatabasePool:
         return database_url
 
     def initialize(self) -> None:
-        import asyncio
-
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -97,7 +97,9 @@ class DatabasePool:
 
     async def _ensure_ready(self) -> None:
         if self.engine is None or not self._tables_created:
-            await self.initialize_async()
+            async with self._init_lock:
+                if self.engine is None or not self._tables_created:
+                    await self.initialize_async()
 
     async def save_task(self, task: Dict[str, Any] | TaskModel) -> TaskModel:
         await self._ensure_ready()
@@ -148,8 +150,6 @@ class DatabasePool:
             self.engine = None
 
     def close(self) -> None:
-        import asyncio
-
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
