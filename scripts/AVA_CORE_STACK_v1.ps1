@@ -52,6 +52,11 @@ $RiskWeightMedium = 10
 $RiskWeightLow = 4
 $RiskWeightSuspiciousPowerShell = 8
 $RiskWeightPublicTcp = 2
+$RiskPublicTcpCap = 10
+$RiskTrendSpikeThreshold = 10
+$RiskTrendSpikeWeight = 8
+$GraphRecentEventsLimit = 80
+$MaxAlertDisplayRows = 80
 
 foreach ($d in @($Root, $LogDir, $StateDir, $ReportDir)) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
@@ -167,23 +172,33 @@ function Get-RemoteIpReputation {
         return [ordered]@{ class = 'LOOPBACK'; note = 'Loopback/Localhost' }
     }
 
-    if ($trimmed -match '^fe80::' -or $trimmed -match '^fc00::' -or $trimmed -match '^fd00::') {
-        return [ordered]@{ class = 'PRIVATE'; note = 'IPv6 lokal/ULA' }
-    }
-
-    if ($trimmed -match '^10\.' -or
-        $trimmed -match '^192\.168\.' -or
-        $trimmed -match '^172\.(1[6-9]|2[0-9]|3[0-1])\.') {
-        return [ordered]@{ class = 'PRIVATE'; note = 'RFC1918 privat' }
-    }
-
-    if ($trimmed -match '^169\.254\.') {
-        return [ordered]@{ class = 'LINK_LOCAL'; note = 'APIPA / Link-Local' }
-    }
-
     $ipObj = $null
     if (-not [System.Net.IPAddress]::TryParse($trimmed, [ref]$ipObj)) {
         return [ordered]@{ class = 'UNPARSEABLE'; note = 'Nicht als IP interpretierbar' }
+    }
+
+    if ($ipObj.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+        if ($ipObj.IsIPv6LinkLocal) {
+            return [ordered]@{ class = 'LINK_LOCAL'; note = 'IPv6 Link-Local' }
+        }
+
+        $bytes6 = $ipObj.GetAddressBytes()
+        if ($bytes6.Count -gt 0 -and (($bytes6[0] -band 0xFE) -eq 0xFC)) {
+            return [ordered]@{ class = 'PRIVATE'; note = 'IPv6 ULA (fc00::/7)' }
+        }
+    }
+
+    if ($ipObj.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+        $bytes = $ipObj.GetAddressBytes()
+        if ($bytes[0] -eq 10 -or
+            ($bytes[0] -eq 192 -and $bytes[1] -eq 168) -or
+            ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31)) {
+            return [ordered]@{ class = 'PRIVATE'; note = 'RFC1918 privat' }
+        }
+
+        if ($bytes[0] -eq 169 -and $bytes[1] -eq 254) {
+            return [ordered]@{ class = 'LINK_LOCAL'; note = 'APIPA / Link-Local' }
+        }
     }
 
     return [ordered]@{ class = 'PUBLIC_UNKNOWN'; note = 'Öffentliche IP (nur Einordnung, kein Lookup)' }
@@ -531,8 +546,8 @@ function Get-RiskAssessment {
         ($medium * $RiskWeightMedium) +
         ($low * $RiskWeightLow) +
         ($suspiciousPs * $RiskWeightSuspiciousPowerShell) +
-        ([Math]::Min($publicTcp, 10) * $RiskWeightPublicTcp)
-    if ($trendSpike -ge 10) { $score += 8 }
+        ([Math]::Min($publicTcp, $RiskPublicTcpCap) * $RiskWeightPublicTcp)
+    if ($trendSpike -ge $RiskTrendSpikeThreshold) { $score += $RiskTrendSpikeWeight }
     if ($score -gt 100) { $score = 100 }
 
     $level = 'OK'
@@ -546,7 +561,7 @@ function Get-RiskAssessment {
     if ($high -gt 0) { $reasons.Add("HIGH Alerts: $high") | Out-Null }
     if ($suspiciousPs -gt 0) { $reasons.Add("Verdächtige PowerShell-Prozesse: $suspiciousPs") | Out-Null }
     if ($publicTcp -gt 0) { $reasons.Add("Öffentliche Remote-IP Verbindungen: $publicTcp (nur Einordnung)") | Out-Null }
-    if ($trendSpike -ge 10) { $reasons.Add("Trend-Peak der Alerts in den letzten $TrendDays Tagen: $trendSpike") | Out-Null }
+    if ($trendSpike -ge $RiskTrendSpikeThreshold) { $reasons.Add("Trend-Peak der Alerts in den letzten $TrendDays Tagen: $trendSpike") | Out-Null }
     if ($reasons.Count -eq 0) { $reasons.Add('Keine relevanten Risikotreiber erkannt.') | Out-Null }
 
     return [ordered]@{
@@ -604,7 +619,7 @@ function Build-EntityGraph {
         Add-GraphLink -Source $procId -Target $netId -Relation 'connects_to'
     }
 
-    $recentEvents = @($Trend.events | Select-Object -Last 80)
+    $recentEvents = @($Trend.events | Select-Object -Last $GraphRecentEventsLimit)
     foreach ($e in $recentEvents) {
         $memoryId = "memory:$($e.hash)"
         Add-GraphNode -Id $memoryId -Label "$($e.type)@$($e.time)" -Type 'ava_memory'
@@ -791,7 +806,7 @@ function Build-Portal {
         default { '#6b7280' }
     }
 
-    $alertRows = foreach ($a in ($Alerts | Select-Object -First 80)) {
+    $alertRows = foreach ($a in ($Alerts | Select-Object -First $MaxAlertDisplayRows)) {
         "<tr><td>$(HtmlEncode $a.severity)</td><td>$(HtmlEncode $a.type)</td><td>$(HtmlEncode $a.message)</td></tr>"
     }
     if (-not $alertRows) { $alertRows = @("<tr><td colspan='$AlertTableCols'>Keine Alerts</td></tr>") }
