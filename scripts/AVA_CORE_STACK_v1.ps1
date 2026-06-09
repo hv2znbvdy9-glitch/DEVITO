@@ -41,6 +41,8 @@ $PortalFile   = Join-Path $ReportDir 'ava_core_portal.html'
 $GraphFile    = Join-Path $ReportDir 'ava_core_graph.json'
 $MaxTcpDisplayRows = 50
 $TrendDays = 7
+$TrendBarScale = 14
+$TrendBarMaxWidth = 320
 
 foreach ($d in @($Root, $LogDir, $StateDir, $ReportDir)) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
@@ -156,7 +158,7 @@ function Get-RemoteIpReputation {
         return [ordered]@{ class = 'LOOPBACK'; note = 'Loopback/Localhost' }
     }
 
-    if ($trimmed -match '^fe80:' -or $trimmed -match '^fc' -or $trimmed -match '^fd') {
+    if ($trimmed -match '^fe80:' -or $trimmed -match '^fc00:' -or $trimmed -match '^fd00:') {
         return [ordered]@{ class = 'PRIVATE'; note = 'IPv6 lokal/ULA' }
     }
 
@@ -436,7 +438,7 @@ function Save-AvaFileIntegrityBaseline {
     param([object]$IntegrityState)
 
     [ordered]@{
-        updated = (Get-Date).ToString('s')
+        updated = (Get-Date).ToString('o')
         files   = @($IntegrityState.checked_files)
     } | ConvertTo-Json -Depth 8 | Set-Content -Path $IntegrityFile -Encoding UTF8
 }
@@ -627,7 +629,7 @@ function Build-EntityGraph {
     }
 
     return [ordered]@{
-        generated = (Get-Date).ToString('s')
+        generated = (Get-Date).ToString('o')
         nodes     = @($nodes.Values)
         links     = @($links)
     }
@@ -791,7 +793,7 @@ function Build-Portal {
     if (-not $tcpRows) { $tcpRows = @("<tr><td colspan='7'>Keine etablierten TCP-Verbindungen.</td></tr>") }
 
     $trendRows = foreach ($d in $Trend.days) {
-        $width = [Math]::Min([int]$d.alerts * 14, 320)
+        $width = [Math]::Min([int]$d.alerts * $TrendBarScale, $TrendBarMaxWidth)
         "<tr><td>$(HtmlEncode $d.day)</td><td>$(HtmlEncode $d.snapshots)</td><td>$(HtmlEncode $d.alerts)</td><td>$(HtmlEncode $d.critical)</td><td>$(HtmlEncode $d.high)</td><td><div class='bar' style='width:${width}px'></div></td></tr>"
     }
 
