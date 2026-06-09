@@ -1,4 +1,10 @@
-﻿#requires -RunAsAdministrator
+﻿<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
+#requires -RunAsAdministrator
 <#
 AVA v4 PORTAL + LIVE DASHBOARD + TANGLE SAFE + AUTO DEFENSE MODE
 Lokal / Defensiv / Kontrolliert

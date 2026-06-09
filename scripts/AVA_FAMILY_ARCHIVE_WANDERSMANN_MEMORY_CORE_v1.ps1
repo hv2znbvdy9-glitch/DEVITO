@@ -1,4 +1,10 @@
-﻿Set-StrictMode -Version Latest
+﻿<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $Now = Get-Date -Format "yyyyMMdd_HHmmss"

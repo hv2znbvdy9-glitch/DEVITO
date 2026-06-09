@@ -1,4 +1,10 @@
-﻿#requires -RunAsAdministrator
+﻿<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
+#requires -RunAsAdministrator
 <#
 AVA 3.14 NEXT LAYER — ALL
 UNIFIED LOCAL DEFENSIVE VISIBILITY SYSTEM

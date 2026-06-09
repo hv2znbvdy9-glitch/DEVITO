@@ -1,4 +1,10 @@
-﻿#requires -Version 5.1
+﻿<#
+AVA SAFE STANDARD (V6)
+Lokal / Defensiv / Read-Only
+Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreitung / Keine Änderungen am System
+#>
+
+#requires -Version 5.1
 <#
 AVA SOC PORTAL V6 SAFE EDITION
 Lokal / Defensiv / Read-Only
@@ -612,6 +618,23 @@ neue Dienste oder Tasks, deaktivierter Defender oder deaktivierte Firewall.
 </html>
 "@ | Set-Content -LiteralPath $PortalHtml -Encoding UTF8
 }
+
+function H {
+    param([AllowNull()][object]$Value)
+    ConvertTo-HtmlEncoded -Value $Value
+}
+
+function Sha256Text {
+    param([string]$Text)
+    Get-Sha256Text -Text $Text
+}
+
+Set-Alias -Name New-TimelineEvent -Value Add-TimelineEvent -Scope Script
+Set-Alias -Name New-Snapshot -Value Get-Snapshot -Scope Script
+Set-Alias -Name Load-Baseline -Value Get-BaselineSnapshot -Scope Script
+Set-Alias -Name Analyze-Snapshot -Value Measure-SnapshotRisk -Scope Script
+Set-Alias -Name Rows -Value ConvertTo-TableRow -Scope Script
+Set-Alias -Name Build-Portal -Value Write-Portal -Scope Script
 
 Write-Host ""
 Write-Host "AVA SOC PORTAL V6 SAFE startet..." -ForegroundColor Cyan
