@@ -43,6 +43,15 @@ $MaxTcpDisplayRows = 50
 $TrendDays = 7
 $TrendBarScale = 14
 $TrendBarMaxWidth = 320
+$AlertTableCols = 3
+$PowerShellTableCols = 5
+$TcpTableCols = 7
+$RiskWeightCritical = 35
+$RiskWeightHigh = 20
+$RiskWeightMedium = 10
+$RiskWeightLow = 4
+$RiskWeightSuspiciousPowerShell = 8
+$RiskWeightPublicTcp = 2
 
 foreach ($d in @($Root, $LogDir, $StateDir, $ReportDir)) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
@@ -158,7 +167,7 @@ function Get-RemoteIpReputation {
         return [ordered]@{ class = 'LOOPBACK'; note = 'Loopback/Localhost' }
     }
 
-    if ($trimmed -match '^fe80:' -or $trimmed -match '^fc00:' -or $trimmed -match '^fd00:') {
+    if ($trimmed -match '^fe80::' -or $trimmed -match '^fc00::' -or $trimmed -match '^fd00::') {
         return [ordered]@{ class = 'PRIVATE'; note = 'IPv6 lokal/ULA' }
     }
 
@@ -517,7 +526,12 @@ function Get-RiskAssessment {
     $trendAlerts = @($Trend.days | ForEach-Object { [int]$_.alerts })
     $trendSpike = if ($trendAlerts.Count -gt 0) { ($trendAlerts | Measure-Object -Maximum).Maximum } else { 0 }
 
-    $score = ($critical * 35) + ($high * 20) + ($medium * 10) + ($low * 4) + ($suspiciousPs * 8) + ([Math]::Min($publicTcp, 10) * 2)
+    $score = ($critical * $RiskWeightCritical) +
+        ($high * $RiskWeightHigh) +
+        ($medium * $RiskWeightMedium) +
+        ($low * $RiskWeightLow) +
+        ($suspiciousPs * $RiskWeightSuspiciousPowerShell) +
+        ([Math]::Min($publicTcp, 10) * $RiskWeightPublicTcp)
     if ($trendSpike -ge 10) { $score += 8 }
     if ($score -gt 100) { $score = 100 }
 
@@ -780,20 +794,20 @@ function Build-Portal {
     $alertRows = foreach ($a in ($Alerts | Select-Object -First 80)) {
         "<tr><td>$(HtmlEncode $a.severity)</td><td>$(HtmlEncode $a.type)</td><td>$(HtmlEncode $a.message)</td></tr>"
     }
-    if (-not $alertRows) { $alertRows = @("<tr><td colspan='3'>Keine Alerts</td></tr>") }
+    if (-not $alertRows) { $alertRows = @("<tr><td colspan='$AlertTableCols'>Keine Alerts</td></tr>") }
 
     $psRows = foreach ($p in $Snapshot.powershell) {
         "<tr><td>$(HtmlEncode $p.ppid)</td><td>$(HtmlEncode $p.pid)</td><td>$(HtmlEncode $p.name)</td><td>$(HtmlEncode $p.suspicious)</td><td>$(HtmlEncode ($p.hits -join ', '))</td></tr>"
     }
-    if (-not $psRows) { $psRows = @("<tr><td colspan='5'>Keine laufenden PowerShell-Prozesse erkannt.</td></tr>") }
+    if (-not $psRows) { $psRows = @("<tr><td colspan='$PowerShellTableCols'>Keine laufenden PowerShell-Prozesse erkannt.</td></tr>") }
 
     $tcpRows = foreach ($c in ($Snapshot.network.tcp | Select-Object -First $MaxTcpDisplayRows)) {
         "<tr><td>$(HtmlEncode $c.process)</td><td>$(HtmlEncode $c.pid)</td><td>$(HtmlEncode $c.local_port)</td><td>$(HtmlEncode $c.remote_address)</td><td>$(HtmlEncode $c.remote_port)</td><td>$(HtmlEncode $c.remote_reputation_class)</td><td>$(HtmlEncode $c.remote_reputation_note)</td></tr>"
     }
-    if (-not $tcpRows) { $tcpRows = @("<tr><td colspan='7'>Keine etablierten TCP-Verbindungen.</td></tr>") }
+    if (-not $tcpRows) { $tcpRows = @("<tr><td colspan='$TcpTableCols'>Keine etablierten TCP-Verbindungen.</td></tr>") }
 
     $trendRows = foreach ($d in $Trend.days) {
-        $width = [Math]::Min([int]$d.alerts * $TrendBarScale, $TrendBarMaxWidth)
+        $width = [Math]::Min($d.alerts * $TrendBarScale, $TrendBarMaxWidth)
         "<tr><td>$(HtmlEncode $d.day)</td><td>$(HtmlEncode $d.snapshots)</td><td>$(HtmlEncode $d.alerts)</td><td>$(HtmlEncode $d.critical)</td><td>$(HtmlEncode $d.high)</td><td><div class='bar' style='width:${width}px'></div></td></tr>"
     }
 
@@ -859,7 +873,6 @@ function Build-Portal {
 <div class="section">
   <h2>🧠 Prozess-Graph / AVA Memory ↔ Alert ↔ Prozess ↔ Netzwerk</h2>
   <p>$(HtmlEncode $graphSummary)</p>
-  <p><code>$GraphFile</code></p>
 </div>
 
 <div class="section">
