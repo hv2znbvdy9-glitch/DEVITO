@@ -629,6 +629,8 @@ function Sha256Text {
     Get-Sha256Text -Text $Text
 }
 
+# Legacy V6 compatibility aliases kept intentionally so older AVA callers
+# continue to work with original command names from previous script revisions.
 Set-Alias -Name New-TimelineEvent -Value Add-TimelineEvent -Scope Script
 Set-Alias -Name New-Snapshot -Value Get-Snapshot -Scope Script
 Set-Alias -Name Load-Baseline -Value Get-BaselineSnapshot -Scope Script
