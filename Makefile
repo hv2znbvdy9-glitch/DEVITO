@@ -2,6 +2,8 @@
 
 .PHONY: help install install-dev test lint format check clean docker-build docker-dev proto-compile grpc-certs
 
+PYTHON ?= python3
+
 help:
 	@echo "AVA Project - Available targets:"
 	@echo "  install       - Install the package"
@@ -23,15 +25,15 @@ install-dev:
 	pip install -e ".[dev]"
 
 test:
-	pytest tests/ --cov=ava
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ --cov=ava
 
 lint:
-	flake8 ava tests
-	mypy ava
+	$(PYTHON) -m flake8 ava tests
+	$(PYTHON) -m mypy ava
 
 format:
-	black ava tests
-	isort ava tests
+	$(PYTHON) -m black ava tests
+	$(PYTHON) -m isort ava tests
 
 check: format lint test
 

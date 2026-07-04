@@ -12,8 +12,8 @@ logger = logging.getLogger("ava.lsp")
 
 # Defaults
 _DEFAULT_MAX_RETRIES = 5
-_DEFAULT_BASE_DELAY = 1.0     # seconds
-_DEFAULT_MAX_DELAY = 30.0     # seconds
+_DEFAULT_BASE_DELAY = 1.0  # seconds
+_DEFAULT_MAX_DELAY = 30.0  # seconds
 _DEFAULT_BACKOFF_FACTOR = 2.0
 
 
@@ -29,7 +29,8 @@ class RestartManager:
             mgr.record_failure()
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         max_retries: int = _DEFAULT_MAX_RETRIES,
         base_delay: float = _DEFAULT_BASE_DELAY,
         max_delay: float = _DEFAULT_MAX_DELAY,
@@ -65,7 +66,7 @@ class RestartManager:
 
     def next_delay(self) -> float:
         """Compute the delay (seconds) before the next restart attempt."""
-        delay = self.base_delay * (self.backoff_factor ** self._failures)
+        delay = self.base_delay * (self.backoff_factor**self._failures)
         return min(delay, self.max_delay)
 
     def wait(self) -> float:

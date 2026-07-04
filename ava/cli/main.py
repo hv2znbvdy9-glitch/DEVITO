@@ -1,15 +1,17 @@
 """CLI module for AVA."""
 
 import json
-import typer
 from typing import Optional
-from ava.clients.isc_client import ISCClient
-from ava.core.engine import Engine
-from ava.core.logging import LoggerConfig, logger
-from ava.config.settings import get_config
-from ava.utils.exceptions import ValidationError
+
+import typer
 from rich.console import Console
 from rich.table import Table
+
+from ava.clients.isc_client import ISCClient
+from ava.config.settings import get_config
+from ava.core.engine import Engine
+from ava.core.logging import LoggerConfig, logger
+from ava.utils.exceptions import ValidationError
 
 app = typer.Typer(help="AVA - Advanced Virtual Assistant")
 console = Console()
@@ -68,14 +70,8 @@ def list_all(show_completed: bool = False) -> None:
 
     for task in tasks:
         status = "✅ Completed" if task.completed else "⏳ Pending"
-        created_str = (
-            task.created_at.strftime("%Y-%m-%d %H:%M")
-            if task.created_at
-            else "Unknown"
-        )
-        table.add_row(
-            task.id[:8], task.name, status, created_str
-        )
+        created_str = task.created_at.strftime("%Y-%m-%d %H:%M") if task.created_at else "Unknown"
+        table.add_row(task.id[:8], task.name, status, created_str)
 
     console.print(table)
 
@@ -92,7 +88,7 @@ def complete(task_id: str) -> None:
 @app.command()
 def run(task_id: str, background: bool = False) -> None:
     """Run a task by executing its command.
-    
+
     Args:
         task_id: The ID of the task to run
         background: Run the task in the background (async)
@@ -101,19 +97,19 @@ def run(task_id: str, background: bool = False) -> None:
     if task is None:
         console.print(f"❌ Task not found: {task_id}", style="red")
         return
-    
+
     if not task.command:
-        console.print(f"❌ Task has no command to execute", style="red")
+        console.print("❌ Task has no command to execute", style="red")
         return
-    
+
     console.print(f"🚀 Running task: {task.name}")
     console.print(f"   Command: {task.command}")
-    
+
     if background:
         console.print("   Mode: Background")
-    
+
     success = engine.run_task(task_id, background=background)
-    
+
     if background:
         console.print("✅ Task started in background", style="green")
     elif success:
@@ -137,9 +133,7 @@ def stats() -> None:
     console.print(f"  Completed:       {stats['completed_tasks']}")
     console.print(f"  Pending:         {stats['pending_tasks']}")
     if stats["total_tasks"] > 0:
-        percentage = (
-            stats["completed_tasks"] / stats["total_tasks"] * 100
-        )
+        percentage = stats["completed_tasks"] / stats["total_tasks"] * 100
         console.print(f"  Progress:        {percentage:.1f}%")
     console.print()
 

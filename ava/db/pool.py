@@ -5,11 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy import Boolean, Column, MetaData, String, Table, insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
 
 metadata = MetaData()
 
@@ -51,7 +50,9 @@ class TaskModel:
 class DatabasePool:
     """Async task store with optional Redis cache."""
 
-    def __init__(self, database_url: str = "sqlite+aiosqlite:///:memory:", redis_url: Optional[str] = None) -> None:
+    def __init__(
+        self, database_url: str = "sqlite+aiosqlite:///:memory:", redis_url: Optional[str] = None
+    ) -> None:
         self.database_url = self._normalize_database_url(database_url)
         self.redis_url = redis_url
         self.engine: Optional[AsyncEngine] = None
@@ -125,7 +126,7 @@ class DatabasePool:
         if self._redis is not None:
             cached = await self._redis.get(f"ava:task:{task_id}")
             if cached:
-                return json.loads(cached)
+                return cast(Dict[str, Any], json.loads(cached))
 
         async with self.engine.connect() as conn:
             result = await conn.execute(select(tasks_table).where(tasks_table.c.id == task_id))
