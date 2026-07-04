@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 from sqlalchemy import Boolean, Column, MetaData, String, Table, insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-
 metadata = MetaData()
 
 tasks_table = Table(
@@ -51,7 +50,9 @@ class TaskModel:
 class DatabasePool:
     """Async task store with optional Redis cache."""
 
-    def __init__(self, database_url: str = "sqlite+aiosqlite:///:memory:", redis_url: Optional[str] = None) -> None:
+    def __init__(
+        self, database_url: str = "sqlite+aiosqlite:///:memory:", redis_url: Optional[str] = None
+    ) -> None:
         self.database_url = self._normalize_database_url(database_url)
         self.redis_url = redis_url
         self.engine: Optional[AsyncEngine] = None

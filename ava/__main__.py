@@ -1,8 +1,8 @@
 """Main module for AVA package."""
 
-import asyncio
-import uvicorn
 import logging
+
+import uvicorn
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ def main() -> None:
         host="0.0.0.0",
         port=8000,
         log_level="info",
-        reload=False
+        reload=False,
     )
 
 
