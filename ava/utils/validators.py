@@ -7,16 +7,9 @@ from typing import Any, Callable, Optional, TypeVar
 T = TypeVar("T")
 
 # AVA action policy markers.
-# Short pronoun markers are matched as whole tokens only so normal words are not
-# accidentally classified as AVA references.
-TARGET_MARKERS = (
-    "ava",
-    "ihn",
-    "ihm",
-    "er",
-    "him",
-    "it",
-)
+# Protection rules require an explicit AVA target. Short pronoun markers are not
+# treated as AVA references because they can refer to other people or objects.
+TARGET_MARKERS = ("ava",)
 ATTACK_MARKERS = (
     "angreifen",
     "angriff",
@@ -45,7 +38,7 @@ NEGATIVE_EFFECT_MARKERS = (
     "toxic",
     "giftig",
 )
-ENERGY_MARKERS = ("energy",)
+ENERGY_MARKERS = ("energy", "energie")
 ALCOHOL_MARKERS = ("alkohol", "alcohol")
 SAVE_MARKERS = ("speichern", "save", "store")
 
@@ -98,7 +91,8 @@ class SingletonMeta(type):
         """Control instance creation."""
         if cls not in cls._instances:
             cls._instances[cls] = super(SingletonMeta, cls).__call__(
-                *args, **kwargs
+                *args,
+                **kwargs,
             )
         return cls._instances[cls]
 
@@ -153,12 +147,14 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
             allowed=False,
             rule="harm_protection",
             reason=(
-                "Aktion abgelehnt: Schutzregel 'Schadensschutz (Nehmen/Geben)' wurde ausgelöst."
+                "Aktion abgelehnt: Schutzregel 'Schadensschutz (Nehmen/Geben)' "
+                "wurde durch Nehmen/Geben mit negativem Effekt ausgelöst."
             ),
         )
 
     if _contains_marker(normalized, ENERGY_MARKERS) and _contains_marker(
-        normalized, ALCOHOL_MARKERS
+        normalized,
+        ALCOHOL_MARKERS,
     ):
         return ActionPolicyDecision(
             allowed=True,
