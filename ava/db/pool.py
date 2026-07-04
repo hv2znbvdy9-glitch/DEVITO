@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy import Boolean, Column, MetaData, String, Table, insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -126,7 +126,7 @@ class DatabasePool:
         if self._redis is not None:
             cached = await self._redis.get(f"ava:task:{task_id}")
             if cached:
-                return json.loads(cached)
+                return cast(Dict[str, Any], json.loads(cached))
 
         async with self.engine.connect() as conn:
             result = await conn.execute(select(tasks_table).where(tasks_table.c.id == task_id))

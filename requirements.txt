@@ -4,6 +4,8 @@ rich>=13.0  # Terminal UI for security dashboard
 psutil>=5.9  # System and process utilities
 sqlalchemy>=2.0
 aiosqlite>=0.19
+uvicorn>=0.24
+redis>=5.0
 
 # Development dependencies
 pytest>=7.0

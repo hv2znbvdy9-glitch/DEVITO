@@ -151,6 +151,7 @@ class Engine:
 
     def _run_task_sync(self, task: Task) -> bool:
         """Execute task synchronously."""
+        assert task.command is not None
         try:
             result = subprocess.run(
                 task.command,
@@ -184,25 +185,28 @@ class Engine:
 
     async def _run_task_async(self, task: Task) -> None:
         """Execute task asynchronously."""
+        assert task.command is not None
         try:
-            # Add timeout for background tasks (5 minutes, same as sync)
-            async with asyncio.timeout(300):
-                process = await asyncio.create_subprocess_shell(
-                    task.command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            process = await asyncio.create_subprocess_shell(
+                task.command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.communicate()
+                raise
+
+            task.result = stdout.decode() if process.returncode == 0 else stderr.decode()
+            task.running = False
+
+            if process.returncode == 0:
+                task.complete()
+                logger.info(f"Background task {task.id} completed successfully")
+            else:
+                logger.error(
+                    f"Background task {task.id} failed with return code {process.returncode}"
                 )
-
-                stdout, stderr = await process.communicate()
-
-                task.result = stdout.decode() if process.returncode == 0 else stderr.decode()
-                task.running = False
-
-                if process.returncode == 0:
-                    task.complete()
-                    logger.info(f"Background task {task.id} completed successfully")
-                else:
-                    logger.error(
-                        f"Background task {task.id} failed with return code {process.returncode}"
-                    )
 
         except asyncio.TimeoutError:
             task.result = "Task execution timed out"
