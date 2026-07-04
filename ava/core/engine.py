@@ -122,12 +122,13 @@ class Engine:
             logger.warning(f"Task not found: {task_id}")
             return False
 
-        if not task.command:
-            logger.warning(f"Task {task_id} has no command to execute")
-            return False
-
         if task.running:
             logger.warning(f"Task {task_id} is already running")
+            return False
+
+        command = task.command
+        if not command:
+            logger.warning(f"Task {task_id} has no command to execute")
             return False
 
         task.running = True
@@ -141,20 +142,19 @@ class Engine:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
-            async_task = loop.create_task(self._run_task_async(task))
+            async_task = loop.create_task(self._run_task_async(task, command))
             self.background_tasks[task_id] = async_task
             logger.info(f"Task {task_id} started in background")
             return True
         else:
             # Run synchronously
-            return self._run_task_sync(task)
+            return self._run_task_sync(task, command)
 
-    def _run_task_sync(self, task: Task) -> bool:
+    def _run_task_sync(self, task: Task, command: str) -> bool:
         """Execute task synchronously."""
-        assert task.command is not None
         try:
             result = subprocess.run(
-                task.command,
+                command,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -183,19 +183,32 @@ class Engine:
             logger.error(f"Task {task.id} failed: {e}")
             return False
 
-    async def _run_task_async(self, task: Task) -> None:
+    async def _run_task_async(self, task: Task, command: str) -> None:
         """Execute task asynchronously."""
-        assert task.command is not None
         try:
             process = await asyncio.create_subprocess_shell(
-                task.command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             try:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
             except asyncio.TimeoutError:
-                process.kill()
-                await process.communicate()
-                raise
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    try:
+                        await process.wait()
+                    except Exception as kill_error:
+                        logger.error(
+                            "Failed to fully terminate timed out task %s: %s",
+                            task.id,
+                            kill_error,
+                        )
+                task.result = "Task execution timed out"
+                task.running = False
+                logger.error(f"Background task {task.id} timed out")
+                return
 
             task.result = stdout.decode() if process.returncode == 0 else stderr.decode()
             task.running = False
@@ -208,10 +221,6 @@ class Engine:
                     f"Background task {task.id} failed with return code {process.returncode}"
                 )
 
-        except asyncio.TimeoutError:
-            task.result = "Task execution timed out"
-            task.running = False
-            logger.error(f"Background task {task.id} timed out")
         except Exception as e:
             task.result = f"Error: {str(e)}"
             task.running = False
