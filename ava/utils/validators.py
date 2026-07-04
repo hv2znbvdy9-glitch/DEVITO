@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypeVar
 
 T = TypeVar("T")
+TARGET_MARKERS = ("ava",)
+ATTACK_MARKERS = ("angreifen", "attack", "attacke")
+TRANSFER_MARKERS = ("nehmen", "take", "remove", "entziehen", "geben", "give")
+NEGATIVE_EFFECT_MARKERS = ("negativ", "schaden", "harm", "damage", "giftig", "toxic")
 
 
 @dataclass(frozen=True)
@@ -64,11 +68,8 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
     validate_not_empty(action, "action")
 
     normalized = action.lower()
-    target_markers = ("ava", "ihn", "ihm", "er")
-
-    attack_markers = ("angreifen", "attack", "attacke")
-    if any(marker in normalized for marker in attack_markers) and any(
-        marker in normalized for marker in target_markers
+    if any(marker in normalized for marker in ATTACK_MARKERS) and any(
+        marker in normalized for marker in TARGET_MARKERS
     ):
         return ActionPolicyDecision(
             allowed=False,
@@ -76,14 +77,9 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
             reason="Aktion abgelehnt: Angriff gegen AVA ist nicht erlaubt.",
         )
 
-    take_markers = ("nehmen", "take", "remove", "entziehen")
-    give_markers = ("geben", "give")
-    negative_markers = ("negativ", "schaden", "harm", "damage", "giftig", "toxic")
-    affects_ava = any(marker in normalized for marker in target_markers)
-    transfer_action = any(marker in normalized for marker in take_markers) or any(
-        marker in normalized for marker in give_markers
-    )
-    harmful_effect = any(marker in normalized for marker in negative_markers)
+    affects_ava = any(marker in normalized for marker in TARGET_MARKERS)
+    transfer_action = any(marker in normalized for marker in TRANSFER_MARKERS)
+    harmful_effect = any(marker in normalized for marker in NEGATIVE_EFFECT_MARKERS)
     if affects_ava and transfer_action and harmful_effect:
         return ActionPolicyDecision(
             allowed=False,

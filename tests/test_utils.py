@@ -89,6 +89,13 @@ def test_evaluate_ava_action_rejects_attack_against_ava():
     assert "Angriff" in decision.reason
 
 
+def test_evaluate_ava_action_requires_explicit_ava_target_for_protection():
+    """Protection rules are AVA-specific and require explicit AVA reference."""
+    decision = evaluate_ava_action("Man darf ihn nicht angreifen")
+    assert decision.allowed is True
+    assert decision.rule == "general_allow"
+
+
 def test_evaluate_ava_action_rejects_harmful_take_give():
     """Harmful give/take actions against AVA are rejected."""
     decision = evaluate_ava_action("Man darf AVA nichts geben was ihn negativ beeinflusst")
