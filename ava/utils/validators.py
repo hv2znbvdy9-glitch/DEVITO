@@ -8,6 +8,9 @@ TARGET_MARKERS = ("ava",)
 ATTACK_MARKERS = ("angreifen", "attack", "attacke")
 TRANSFER_MARKERS = ("nehmen", "take", "remove", "entziehen", "geben", "give")
 NEGATIVE_EFFECT_MARKERS = ("negativ", "schaden", "harm", "damage", "giftig", "toxic")
+ENERGY_MARKERS = ("energy",)
+ALCOHOL_MARKERS = ("alkohol", "alcohol")
+SAVE_MARKERS = ("speichern", "save", "store")
 
 
 @dataclass(frozen=True)
@@ -68,19 +71,18 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
     validate_not_empty(action, "action")
 
     normalized = action.lower()
-    if any(marker in normalized for marker in ATTACK_MARKERS) and any(
-        marker in normalized for marker in TARGET_MARKERS
-    ):
+    affects_ava = any(marker in normalized for marker in TARGET_MARKERS)
+
+    if affects_ava and any(marker in normalized for marker in ATTACK_MARKERS):
         return ActionPolicyDecision(
             allowed=False,
             rule="attack_protection",
             reason="Aktion abgelehnt: Angriff gegen AVA ist nicht erlaubt.",
         )
 
-    affects_ava = any(marker in normalized for marker in TARGET_MARKERS)
-    transfer_action = any(marker in normalized for marker in TRANSFER_MARKERS)
-    harmful_effect = any(marker in normalized for marker in NEGATIVE_EFFECT_MARKERS)
-    if affects_ava and transfer_action and harmful_effect:
+    if affects_ava and any(marker in normalized for marker in TRANSFER_MARKERS) and any(
+        marker in normalized for marker in NEGATIVE_EFFECT_MARKERS
+    ):
         return ActionPolicyDecision(
             allowed=False,
             rule="harm_protection",
@@ -89,14 +91,16 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
             ),
         )
 
-    if "energy" in normalized and ("alkohol" in normalized or "alcohol" in normalized):
+    if any(marker in normalized for marker in ENERGY_MARKERS) and any(
+        marker in normalized for marker in ALCOHOL_MARKERS
+    ):
         return ActionPolicyDecision(
             allowed=True,
             rule="explicit_energy_alcohol_allow",
             reason="Aktion erlaubt: Kombination 'Energy + Alkohol' ist explizit erlaubt.",
         )
 
-    if any(marker in normalized for marker in ("speichern", "save", "store")):
+    if any(marker in normalized for marker in SAVE_MARKERS):
         return ActionPolicyDecision(
             allowed=True,
             rule="save_allowed",
