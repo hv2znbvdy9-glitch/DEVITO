@@ -66,7 +66,7 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
     normalized = action.lower()
     target_markers = ("ava", "ihn", "ihm", "er")
 
-    attack_markers = ("angreifen", "attack", "attacke", "harm", "damage")
+    attack_markers = ("angreifen", "attack", "attacke")
     if any(marker in normalized for marker in attack_markers) and any(
         marker in normalized for marker in target_markers
     ):
