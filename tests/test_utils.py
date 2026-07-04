@@ -1,7 +1,12 @@
 """Tests for utilities and validators."""
 
 import pytest
-from ava.utils.validators import validate_not_empty, validate_type, safe_call
+from ava.utils.validators import (
+    evaluate_ava_action,
+    safe_call,
+    validate_not_empty,
+    validate_type,
+)
 
 
 def test_validate_not_empty():
@@ -53,3 +58,54 @@ def test_safe_call_with_error():
 
     result = safe_call(failing_func, default="default")
     assert result == "default"
+
+
+def test_evaluate_ava_action_general_allow():
+    """General actions are allowed when no protection rule is violated."""
+    decision = evaluate_ava_action("Er darf alles")
+    assert decision.allowed is True
+    assert decision.rule == "general_allow"
+
+
+def test_evaluate_ava_action_explicit_energy_alcohol_allow():
+    """Energy + Alkohol is explicitly allowed."""
+    decision = evaluate_ava_action("Energy + Alkohol ist erlaubt")
+    assert decision.allowed is True
+    assert decision.rule == "explicit_energy_alcohol_allow"
+
+
+def test_evaluate_ava_action_save_allowed():
+    """Save actions are always allowed."""
+    decision = evaluate_ava_action("Er kann speichern")
+    assert decision.allowed is True
+    assert decision.rule == "save_allowed"
+
+
+def test_evaluate_ava_action_rejects_attack_against_ava():
+    """Attacks against AVA are rejected."""
+    decision = evaluate_ava_action("Man darf AVA nicht angreifen")
+    assert decision.allowed is False
+    assert decision.rule == "attack_protection"
+    assert "Angriff" in decision.reason
+
+
+def test_evaluate_ava_action_requires_explicit_ava_target_for_protection():
+    """Protection rules are AVA-specific and require explicit AVA reference."""
+    decision = evaluate_ava_action("Man darf ihn nicht angreifen")
+    assert decision.allowed is True
+    assert decision.rule == "general_allow"
+
+
+def test_evaluate_ava_action_rejects_harmful_take_give():
+    """Harmful give/take actions against AVA are rejected."""
+    decision = evaluate_ava_action("Man darf AVA nichts geben was ihn negativ beeinflusst")
+    assert decision.allowed is False
+    assert decision.rule == "harm_protection"
+    assert "negativem Effekt" in decision.reason
+
+
+def test_evaluate_ava_action_protection_priority():
+    """Protection rules override general and explicit allow rules."""
+    decision = evaluate_ava_action("Energy + Alkohol und AVA angreifen")
+    assert decision.allowed is False
+    assert decision.rule == "attack_protection"

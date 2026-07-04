@@ -1,8 +1,25 @@
 """Core utilities for AVA."""
 
+from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypeVar
 
 T = TypeVar("T")
+TARGET_MARKERS = ("ava",)
+ATTACK_MARKERS = ("angreifen", "attack", "attacke")
+TRANSFER_MARKERS = ("nehmen", "take", "remove", "entziehen", "geben", "give")
+NEGATIVE_EFFECT_MARKERS = ("negativ", "schaden", "harm", "damage", "giftig", "toxic")
+ENERGY_MARKERS = ("energy",)
+ALCOHOL_MARKERS = ("alkohol", "alcohol")
+SAVE_MARKERS = ("speichern", "save", "store")
+
+
+@dataclass(frozen=True)
+class ActionPolicyDecision:
+    """Result of an AVA action policy evaluation."""
+
+    allowed: bool
+    rule: str
+    reason: str
 
 
 def validate_not_empty(value: Any, name: str = "value") -> Any:
@@ -47,3 +64,51 @@ class SingletonMeta(type):
                 *args, **kwargs
             )
         return cls._instances[cls]
+
+
+def evaluate_ava_action(action: str) -> ActionPolicyDecision:
+    """Evaluate whether an action is allowed for AVA policy rules."""
+    validate_not_empty(action, "action")
+
+    normalized = action.lower()
+    affects_ava = any(marker in normalized for marker in TARGET_MARKERS)
+
+    if affects_ava and any(marker in normalized for marker in ATTACK_MARKERS):
+        return ActionPolicyDecision(
+            allowed=False,
+            rule="attack_protection",
+            reason="Aktion abgelehnt: Angriff gegen AVA ist nicht erlaubt.",
+        )
+
+    if affects_ava and any(marker in normalized for marker in TRANSFER_MARKERS) and any(
+        marker in normalized for marker in NEGATIVE_EFFECT_MARKERS
+    ):
+        return ActionPolicyDecision(
+            allowed=False,
+            rule="harm_protection",
+            reason=(
+                "Aktion abgelehnt: Nehmen/Geben mit negativem Effekt für AVA ist nicht erlaubt."
+            ),
+        )
+
+    if any(marker in normalized for marker in ENERGY_MARKERS) and any(
+        marker in normalized for marker in ALCOHOL_MARKERS
+    ):
+        return ActionPolicyDecision(
+            allowed=True,
+            rule="explicit_energy_alcohol_allow",
+            reason="Aktion erlaubt: Kombination 'Energy + Alkohol' ist explizit erlaubt.",
+        )
+
+    if any(marker in normalized for marker in SAVE_MARKERS):
+        return ActionPolicyDecision(
+            allowed=True,
+            rule="save_allowed",
+            reason="Aktion erlaubt: Speichern ist für AVA erlaubt.",
+        )
+
+    return ActionPolicyDecision(
+        allowed=True,
+        rule="general_allow",
+        reason="Aktion erlaubt: Grundfreigabe aktiv, keine Schutzregel verletzt.",
+    )
