@@ -7,8 +7,8 @@ from typing import Any, Callable, Optional, TypeVar
 T = TypeVar("T")
 
 # AVA action policy markers.
-# Protection rules require an explicit AVA target. Short pronoun markers are not
-# treated as AVA references because they can refer to other people or objects.
+# Protection rules require an explicit AVA target or a direct pronoun reference
+# ("ihn"/"ihm"), except when phrased as a general protection statement.
 TARGET_MARKERS = ("ava",)
 ATTACK_MARKERS = (
     "angreifen",
@@ -102,6 +102,11 @@ def _tokens(text: str) -> set[str]:
     return set(re.findall(r"[\wäöüß]+", text.lower(), flags=re.IGNORECASE))
 
 
+def _token_list(text: str) -> list[str]:
+    """Return ordered lowercase word-like tokens."""
+    return re.findall(r"[\wäöüß]+", text.lower(), flags=re.IGNORECASE)
+
+
 def _contains_marker(text: str, markers: tuple[str, ...]) -> bool:
     """Match policy markers without treating short markers as substrings."""
     normalized = text.lower()
@@ -115,6 +120,37 @@ def _contains_marker(text: str, markers: tuple[str, ...]) -> bool:
         elif marker_normalized in normalized:
             return True
     return False
+
+
+def _contains_sequence(tokens: list[str], sequence: tuple[str, ...]) -> bool:
+    """Return True if the ordered sequence appears in tokens."""
+    sequence_len = len(sequence)
+    if len(tokens) < sequence_len:
+        return False
+
+    return any(
+        tuple(tokens[index : index + sequence_len]) == sequence
+        for index in range(len(tokens) - sequence_len + 1)
+    )
+
+
+def _split_clauses(text: str) -> list[str]:
+    """Split text into rough clauses for local intent checks."""
+    return [part.strip() for part in re.split(r"[.!?;,]|\bund\b|\baber\b", text) if part.strip()]
+
+
+def _is_general_protection_clause(clause: str) -> bool:
+    """Detect generic protective statements that should not trigger AVA targeting."""
+    tokens = _token_list(clause)
+    patterns = (
+        ("man", "darf", "ihn", "nicht"),
+        ("man", "darf", "ihm", "nicht"),
+        ("man", "soll", "ihn", "nicht"),
+        ("man", "soll", "ihm", "nicht"),
+        ("niemand", "darf", "ihn"),
+        ("niemand", "darf", "ihm"),
+    )
+    return any(_contains_sequence(tokens, pattern) for pattern in patterns)
 
 
 def evaluate_ava_action(action: str) -> ActionPolicyDecision:
@@ -132,8 +168,14 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
     normalized = action.lower()
     tokens = _tokens(normalized)
     affects_ava = _contains_marker(normalized, TARGET_MARKERS)
-    if any(p in tokens for p in ("ihn", "ihm")) and "man" not in tokens:
+    for clause in _split_clauses(normalized):
+        clause_tokens = _tokens(clause)
+        if not any(p in clause_tokens for p in ("ihn", "ihm")):
+            continue
+        if _is_general_protection_clause(clause):
+            continue
         affects_ava = True
+        break
     has_attack = _contains_marker(normalized, ATTACK_MARKERS)
     has_transfer = _contains_marker(normalized, TRANSFER_MARKERS)
     has_negative_effect = _contains_marker(normalized, NEGATIVE_EFFECT_MARKERS)
