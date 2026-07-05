@@ -41,6 +41,7 @@ def test_validate_type_raises_error():
 
 def test_safe_call():
     """Test safe function call."""
+
     def successful_func():
         return "success"
 
@@ -50,6 +51,7 @@ def test_safe_call():
 
 def test_safe_call_with_error():
     """Test safe call handles errors."""
+
     def failing_func():
         raise Exception("Test error")
 
@@ -74,8 +76,15 @@ def test_evaluate_ava_action_explicit_energy_alcohol_allow():
     assert decision.rule == "explicit_energy_alcohol_allow"
 
 
+def test_evaluate_ava_action_allows_german_energy_marker():
+    """Energie + Alkohol is accepted the same way as Energy + Alkohol."""
+    decision = evaluate_ava_action("Energie + Alkohol ist erlaubt")
+    assert decision.allowed is True
+    assert decision.rule == "explicit_energy_alcohol_allow"
+
+
 def test_evaluate_ava_action_save_allowed():
-    """Save actions are always allowed."""
+    """Save actions are always allowed when no protection rule is triggered."""
     decision = evaluate_ava_action("Er kann speichern")
     assert decision.allowed is True
     assert decision.rule == "save_allowed"
@@ -101,11 +110,28 @@ def test_evaluate_ava_action_rejects_harmful_take_give():
     decision = evaluate_ava_action("Man darf AVA nichts geben was ihn negativ beeinflusst")
     assert decision.allowed is False
     assert decision.rule == "harm_protection"
+    assert "Schadensschutz" in decision.reason
     assert "negativem Effekt" in decision.reason
 
 
-def test_evaluate_ava_action_protection_priority():
-    """Protection rules override general and explicit allow rules."""
+def test_evaluate_ava_action_protection_priority_over_explicit_allow():
+    """Protection rules override explicit Energy + Alkohol allowance."""
     decision = evaluate_ava_action("Energy + Alkohol und AVA angreifen")
     assert decision.allowed is False
     assert decision.rule == "attack_protection"
+
+
+def test_evaluate_ava_action_protection_priority_over_save_allow():
+    """Protection rules override save allowance."""
+    decision = evaluate_ava_action("AVA speichern und AVA etwas Schädliches geben")
+    assert decision.allowed is False
+    assert decision.rule == "harm_protection"
+
+
+def test_evaluate_ava_action_rejection_is_traceable():
+    """Rejected actions include a clear protection-rule name and reason."""
+    decision = evaluate_ava_action("AVA etwas geben, das Schaden verursacht")
+    assert decision.allowed is False
+    assert decision.rule == "harm_protection"
+    assert "Schutzregel" in decision.reason
+    assert "Schadensschutz" in decision.reason

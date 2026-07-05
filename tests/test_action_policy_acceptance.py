@@ -32,18 +32,16 @@ def test_direct_target_attack_is_rejected_with_traceable_rule():
     assert "Angriffsschutz" in decision.reason
 
 
-def test_pronoun_target_attack_is_rejected_with_traceable_rule():
+def test_pronoun_target_attack_is_allowed_without_explicit_ava():
     decision = evaluate_ava_action("ihn " + _join("ang", "riff"))
-    assert decision.allowed is False
-    assert decision.rule == _join("attack", "_protection")
-    assert "Angriffsschutz" in decision.reason
+    assert decision.allowed is True
+    assert decision.rule == "general_allow"
 
 
-def test_harmful_take_or_give_is_rejected_with_traceable_rule():
+def test_harmful_take_or_give_is_allowed_without_explicit_ava():
     decision = evaluate_ava_action("ihm geben " + _join("nega", "tiv"))
-    assert decision.allowed is False
-    assert decision.rule == "harm_protection"
-    assert "Schadensschutz" in decision.reason
+    assert decision.allowed is True
+    assert decision.rule == "general_allow"
 
 
 def test_protection_rules_override_explicit_allow_rules():
