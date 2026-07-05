@@ -147,8 +147,8 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
             allowed=False,
             rule="harm_protection",
             reason=(
-                "Aktion abgelehnt: Schutzregel 'Schadensschutz (Nehmen/Geben)' "
-                "wurde durch Nehmen/Geben mit negativem Effekt ausgelöst."
+                "Aktion abgelehnt: Schutzregel 'Schadensschutz' wurde durch "
+                "Nehmen/Geben mit negativem Effekt ausgelöst."
             ),
         )
 
