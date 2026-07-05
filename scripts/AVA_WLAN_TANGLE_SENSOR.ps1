@@ -7,7 +7,7 @@ Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreit
 #requires -RunAsAdministrator
 <#
 AVA WLAN TANGLE SENSOR v1.1 SAFE
-- Defensiv / Lokal / Read-Only
+- Defensive / Lokal / Read-Only
 - Visible WLANs via netsh wlan show networks mode=bssid
 - Eigene Adapterdaten via Get-NetAdapter / Get-NetIPConfiguration
 - Eigene LAN-Nachbarn via Get-NetNeighbor
