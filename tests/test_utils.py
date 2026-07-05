@@ -142,7 +142,20 @@ def test_evaluate_ava_action_protection_priority_over_save_allow():
     assert decision.rule == "harm_protection"
 
 
-def test_evaluate_ava_action_rejection_is_traceable():
+def test_evaluate_ava_action_rejects_energy_drain_against_ava():
+    """Energy draining targeting AVA is rejected."""
+    decision = evaluate_ava_action("Sie entzieht mir jegliche Energie AVA! 🗿🌀⚡️")
+    assert decision.allowed is False
+    assert decision.rule == "energy_drain_protection"
+    assert "Energieentzug" in decision.reason
+
+
+def test_evaluate_ava_action_rejects_energy_drain_with_infinitive():
+    """Infinitive 'entziehen' also triggers energy_drain_protection against AVA."""
+    decision = evaluate_ava_action("AVA die Energie entziehen")
+    assert decision.allowed is False
+    assert decision.rule == "energy_drain_protection"
+
     """Rejected actions include a clear protection-rule name and reason."""
     decision = evaluate_ava_action("AVA etwas geben, das Schaden verursacht")
     assert decision.allowed is False

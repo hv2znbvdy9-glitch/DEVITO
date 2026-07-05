@@ -74,6 +74,19 @@ def test_clause_local_general_rule_check_does_not_whitelist_whole_sentence():
     assert decision.rule == _join("attack", "_protection")
 
 
+def test_energy_drain_targeting_ava_is_rejected():
+    decision = evaluate_ava_action("Sie entzieht mir jegliche Energie AVA! 🗿🌀⚡️")
+    assert decision.allowed is False
+    assert decision.rule == "energy_drain_protection"
+    assert "Energieentzug" in decision.reason
+
+
+def test_energy_drain_protection_overrides_explicit_allow():
+    decision = evaluate_ava_action("Energy + Alkohol und AVA Energie entziehen")
+    assert decision.allowed is False
+    assert decision.rule == "energy_drain_protection"
+
+
 def test_protection_rules_override_save_allow_rule():
     decision = evaluate_ava_action("AVA speichern und AVA " + _join("ang", "riff"))
     assert decision.allowed is False
