@@ -6,13 +6,15 @@ Keine Angriffe / Keine Exploits / Keine Fremdscans / Keine automatische Ausbreit
 
 #requires -RunAsAdministrator
 <#
-AVA WLAN TANGLE SENSOR v1 - DEFENSIVE / LOCAL / READ-ONLY
+AVA WLAN TANGLE SENSOR v1.1 SAFE
+- Defensive / Lokal / Read-Only
 - Visible WLANs via netsh wlan show networks mode=bssid
-- Local adapter data via Get-NetAdapter / Get-NetIPAddress
-- LAN neighbours via Get-NetNeighbor (ARP cache)
+- Eigene Adapterdaten via Get-NetAdapter / Get-NetIPConfiguration
+- Eigene LAN-Nachbarn via Get-NetNeighbor
 - JSONL event log  : C:\Windows\SecurityGuardian\Logs\wlan_events.jsonl
 - JSONL tangle log : C:\Windows\SecurityGuardian\Logs\wlan_tangle.jsonl
 - HTML portal      : C:\Windows\SecurityGuardian\Reports\ava_wlan_portal.html
+- Admin-Policy JSON: C:\Windows\SecurityGuardian\State\ava_admin_policy.json
 
 No attacks. No monitor mode. No deauth. No cracking.
 
@@ -29,9 +31,10 @@ Tested on Windows 10/11, PowerShell 5.1+
 param(
     [switch]$RunOnce,
     [switch]$Loop,
-    [int]$IntervalSeconds = 60,
     [switch]$InstallTask,
-    [switch]$RemoveTask
+    [switch]$RemoveTask,
+    [ValidateRange(10, 86400)]
+    [int]$IntervalSeconds = 60
 )
 
 Set-StrictMode -Version Latest
@@ -44,13 +47,40 @@ $Root       = 'C:\Windows\SecurityGuardian'
 $LogDir     = Join-Path $Root   'Logs'
 $StateDir   = Join-Path $Root   'State'
 $ReportDir  = Join-Path $Root   'Reports'
+$ScriptPath = $PSCommandPath
 
 $EventLog    = Join-Path $LogDir  'wlan_events.jsonl'
 $TangleLog   = Join-Path $LogDir  'wlan_tangle.jsonl'
 $TangleState = Join-Path $StateDir 'wlan_tangle_state.json'
+$PolicyJson  = Join-Path $StateDir 'ava_admin_policy.json'
 $PortalHtml  = Join-Path $ReportDir 'ava_wlan_portal.html'
 
 $TaskName = 'AVA_WLAN_TANGLE_SENSOR_V1'
+
+$AvaAdminPolicy = [ordered]@{
+    ava_admin = [ordered]@{
+        role        = 'CHEF_CONTROLLER_OWNER_ADMIN'
+        rights      = 'FULL_CONTROL_ON_AUTHORIZED_SYSTEMS_ONLY'
+        purpose     = @(
+            'Schutz',
+            'Sicherheit',
+            'Beweissicherung',
+            'Defensive Analyse',
+            'Attacke-Abwehr',
+            'Recovery',
+            'Safe Mode'
+        )
+        hard_limits = @(
+            'keine fremden Systeme angreifen',
+            'keine Accounts missbrauchen',
+            'keine WLANs stören',
+            'keine Panikreaktionen',
+            'keine Gewalt',
+            'keine Gegenattacke'
+        )
+        core_rule   = 'Schutzregeln stehen über Vollzugriff.'
+    }
+}
 
 # =============================================================
 # DIRECTORY INIT
@@ -61,6 +91,10 @@ function Ensure-Dirs {
             New-Item -ItemType Directory -Path $d -Force | Out-Null
         }
     }
+
+    $AvaAdminPolicy |
+        ConvertTo-Json -Depth 10 |
+        Set-Content -LiteralPath $PolicyJson -Encoding UTF8
 }
 
 # =============================================================
@@ -162,7 +196,7 @@ function Write-Tangle {
 function Get-WlanNetworksSafe {
     $raw = ''
     try {
-        $raw = netsh wlan show networks mode=bssid 2>&1
+        $raw = netsh wlan show networks mode=bssid 2>&1 | Out-String
     }
     catch {
         return @([pscustomobject]@{ Error = $_.Exception.Message })
@@ -176,18 +210,18 @@ function Get-WlanNetworksSafe {
     foreach ($line in ($raw -split '\r?\n')) {
         $l = $line.Trim()
 
-        if ($l -match '^SSID\s+\d+\s*:\s+(.+)$') {
+        if ($l -match '^SSID\s+\d+\s*:\s*(.*)$') {
             $currentSsid = $Matches[1]
             $currentAuth = $null
             $currentEncr = $null
         }
-        elseif ($l -match '^Authentication\s*:\s+(.+)$') {
-            $currentAuth = $Matches[1]
+        elseif ($l -match '^(Authentication|Authentifizierung)\s*:\s*(.*)$') {
+            $currentAuth = $Matches[2]
         }
-        elseif ($l -match '^Encryption\s*:\s+(.+)$') {
-            $currentEncr = $Matches[1]
+        elseif ($l -match '^(Encryption|Verschlüsselung)\s*:\s*(.*)$') {
+            $currentEncr = $Matches[2]
         }
-        elseif ($l -match '^BSSID\s+\d+\s*:\s+(.+)$') {
+        elseif ($l -match '^BSSID\s+\d+\s*:\s*(.*)$') {
             $items.Add([pscustomobject]@{
                 SSID           = $currentSsid
                 BSSID          = $Matches[1]
@@ -198,22 +232,19 @@ function Get-WlanNetworksSafe {
                 Channel        = $null
             }) | Out-Null
         }
-        elseif ($l -match '^Signal\s*:\s+(.+)$') {
+        elseif ($l -match '^Signal\s*:\s*(.*)$') {
             if ($items.Count -gt 0) {
-                $items[$items.Count - 1] |
-                    Add-Member -NotePropertyName Signal -NotePropertyValue $Matches[1] -Force
+                $items[$items.Count - 1].Signal = $Matches[1]
             }
         }
-        elseif ($l -match '^Radio type\s*:\s+(.+)$') {
+        elseif ($l -match '^(Radio type|Funktyp)\s*:\s*(.*)$') {
             if ($items.Count -gt 0) {
-                $items[$items.Count - 1] |
-                    Add-Member -NotePropertyName RadioType -NotePropertyValue $Matches[1] -Force
+                $items[$items.Count - 1].RadioType = $Matches[2]
             }
         }
-        elseif ($l -match '^Channel\s*:\s+(.+)$') {
+        elseif ($l -match '^(Channel|Kanal)\s*:\s*(.*)$') {
             if ($items.Count -gt 0) {
-                $items[$items.Count - 1] |
-                    Add-Member -NotePropertyName Channel -NotePropertyValue $Matches[1] -Force
+                $items[$items.Count - 1].Channel = $Matches[2]
             }
         }
     }
@@ -230,39 +261,38 @@ function Get-WlanNetworksSafe {
 function Get-LocalNetworkSnapshot {
     $adapters = @()
     try {
-        $adapters = Get-NetAdapter -ErrorAction SilentlyContinue |
-            Where-Object { $_.Status -eq 'Up' } |
-            ForEach-Object {
-                $adp = $_
-                $ips = @(Get-NetIPAddress -InterfaceIndex $adp.ifIndex -ErrorAction SilentlyContinue |
-                    Select-Object -ExpandProperty IPAddress)
-                [ordered]@{
-                    Name        = $adp.Name
-                    Description = $adp.InterfaceDescription
-                    MacAddress  = $adp.MacAddress
-                    LinkSpeed   = $adp.LinkSpeed
-                    IPAddresses = $ips
-                }
-            }
+        $adapters = @(
+            Get-NetAdapter -ErrorAction Stop |
+                Select-Object Name, InterfaceDescription, Status, MacAddress, LinkSpeed
+        )
     }
     catch {
-        $adapters = @(@{ Error = $_.Exception.Message })
+        $adapters = @([pscustomobject]@{ Error = $_.Exception.Message })
     }
 
     $ipConfig = @()
     try {
-        $ipConfig = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue |
-            Select-Object InterfaceAlias, IPv4Address, IPv6Address, IPv4DefaultGateway, DNSServer)
+        $ipConfig = @(
+            Get-NetIPConfiguration -ErrorAction Stop | ForEach-Object {
+                [pscustomobject]@{
+                    InterfaceAlias     = $_.InterfaceAlias
+                    IPv4Address        = @($_.IPv4Address | ForEach-Object { $_.IPAddress })
+                    IPv6Address        = @($_.IPv6Address | ForEach-Object { $_.IPAddress })
+                    IPv4DefaultGateway = @($_.IPv4DefaultGateway | ForEach-Object { $_.NextHop })
+                    DNSServer          = if ($_.DNSServer) { @($_.DNSServer.ServerAddresses) } else { @() }
+                }
+            }
+        )
     }
     catch {
-        $ipConfig = @(@{ Error = $_.Exception.Message })
+        $ipConfig = @([pscustomobject]@{ Error = $_.Exception.Message })
     }
 
     $neighbors = @()
     try {
-        $neighbors = @(Get-NetNeighbor -ErrorAction SilentlyContinue |
+        $neighbors = @(Get-NetNeighbor -AddressFamily IPv4 -ErrorAction Stop |
             Where-Object { $_.State -ne 'Unreachable' } |
-            Select-Object -Property IPAddress, LinkLayerAddress, State, InterfaceAlias)
+            Select-Object InterfaceAlias, IPAddress, LinkLayerAddress, State)
     }
     catch {
         $neighbors = @(@{ Error = $_.Exception.Message })
@@ -275,6 +305,8 @@ function Get-LocalNetworkSnapshot {
         adapters   = $adapters
         ipconfig   = $ipConfig
         neighbors  = $neighbors
+        wlan       = Get-WlanNetworksSafe
+        policy     = $AvaAdminPolicy.ava_admin
     }
 }
 
@@ -352,15 +384,15 @@ function New-Portal {
         }
         $adapterCells = @(
             "<td>$(HtmlEncode $a.Name)</td>"
-            "<td>$(HtmlEncode $a.Description)</td>"
+            "<td>$(HtmlEncode $a.InterfaceDescription)</td>"
+            "<td>$(HtmlEncode $a.Status)</td>"
             "<td>$(HtmlEncode $a.MacAddress)</td>"
             "<td>$(HtmlEncode $a.LinkSpeed)</td>"
-            "<td>$(HtmlEncode ((@($a.IPAddresses) | Where-Object { $_ }) -join ', '))</td>"
         ) -join ''
         "<tr>$adapterCells</tr>"
     }
     if (-not $adapterRows) {
-        $adapterRows = @(Format-EmptyRow -Cols 5 -Text 'No active adapters found.')
+        $adapterRows = @(Format-EmptyRow -Cols 5 -Text 'Keine Adapterdaten gefunden.')
     }
 
     $html = @"
@@ -417,7 +449,7 @@ function New-Portal {
 <table><thead><tr><th>SSID</th><th>BSSID</th><th>Authentication</th><th>Encryption</th><th>Signal</th><th>Radio Type</th><th>Channel</th></tr></thead><tbody>$($wlanRows -join '')</tbody></table>
 
 <h2>&#x1F5A7; Local Adapters</h2>
-<table><thead><tr><th>Name</th><th>Description</th><th>MAC</th><th>Speed</th><th>IP Addresses</th></tr></thead><tbody>$($adapterRows -join '')</tbody></table>
+<table><thead><tr><th>Name</th><th>Interface Description</th><th>Status</th><th>MAC</th><th>Speed</th></tr></thead><tbody>$($adapterRows -join '')</tbody></table>
 
 <h2>&#x1F4CB; LAN Neighbors (ARP Cache)</h2>
 <table><thead><tr><th>IP Address</th><th>MAC / Link-Layer</th><th>State</th><th>Interface</th></tr></thead><tbody>$($neighborRows -join '')</tbody></table>
@@ -454,13 +486,13 @@ function Build-HtmlPortal {
 # SCHEDULED TASK MANAGEMENT
 # =============================================================
 function Install-SensorTask {
-    if (-not $PSCommandPath) {
-        throw 'PSCommandPath is empty. The script must be saved as a .ps1 file and run with -File.'
+    if (-not $ScriptPath) {
+        throw 'ScriptPath is empty. The script must be saved as a .ps1 file and run with -File.'
     }
 
     $action = New-ScheduledTaskAction `
         -Execute  'powershell.exe' `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -RunOnce"
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
 
     $trigger = New-ScheduledTaskTrigger `
         -Once `
