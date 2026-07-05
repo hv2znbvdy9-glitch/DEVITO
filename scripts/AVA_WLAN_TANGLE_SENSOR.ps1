@@ -259,22 +259,34 @@ function Get-WlanNetworksSafe {
 # LOCAL NETWORK SNAPSHOT  (adapters + ARP neighbours)
 # =============================================================
 function Get-LocalNetworkSnapshot {
-    $adapters = @(
-        Get-NetAdapter -ErrorAction Stop |
-            Select-Object Name, InterfaceDescription, Status, MacAddress, LinkSpeed
-    )
+    $adapters = @()
+    try {
+        $adapters = @(
+            Get-NetAdapter -ErrorAction Stop |
+                Select-Object Name, InterfaceDescription, Status, MacAddress, LinkSpeed
+        )
+    }
+    catch {
+        $adapters = @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
 
-    $ipConfig = @(
-        Get-NetIPConfiguration -ErrorAction Stop | ForEach-Object {
-            [pscustomobject]@{
-                InterfaceAlias     = $_.InterfaceAlias
-                IPv4Address        = @($_.IPv4Address | ForEach-Object { $_.IPAddress })
-                IPv6Address        = @($_.IPv6Address | ForEach-Object { $_.IPAddress })
-                IPv4DefaultGateway = @($_.IPv4DefaultGateway | ForEach-Object { $_.NextHop })
-                DNSServer          = if ($_.DNSServer) { @($_.DNSServer.ServerAddresses) } else { @() }
+    $ipConfig = @()
+    try {
+        $ipConfig = @(
+            Get-NetIPConfiguration -ErrorAction Stop | ForEach-Object {
+                [pscustomobject]@{
+                    InterfaceAlias     = $_.InterfaceAlias
+                    IPv4Address        = @($_.IPv4Address | ForEach-Object { $_.IPAddress })
+                    IPv6Address        = @($_.IPv6Address | ForEach-Object { $_.IPAddress })
+                    IPv4DefaultGateway = @($_.IPv4DefaultGateway | ForEach-Object { $_.NextHop })
+                    DNSServer          = if ($_.DNSServer) { @($_.DNSServer.ServerAddresses) } else { @() }
+                }
             }
-        }
-    )
+        )
+    }
+    catch {
+        $ipConfig = @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
 
     $neighbors = @()
     try {
