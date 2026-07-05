@@ -130,7 +130,10 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
     validate_not_empty(action, "action")
 
     normalized = action.lower()
+    tokens = _tokens(normalized)
     affects_ava = _contains_marker(normalized, TARGET_MARKERS)
+    if any(p in tokens for p in ("ihn", "ihm")) and "man" not in tokens:
+        affects_ava = True
     has_attack = _contains_marker(normalized, ATTACK_MARKERS)
     has_transfer = _contains_marker(normalized, TRANSFER_MARKERS)
     has_negative_effect = _contains_marker(normalized, NEGATIVE_EFFECT_MARKERS)
