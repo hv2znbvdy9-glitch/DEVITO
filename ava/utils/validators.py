@@ -23,6 +23,7 @@ TRANSFER_MARKERS = (
     "take",
     "remove",
     "entziehen",
+    "entzieht",
     "geben",
     "give",
 )
@@ -196,7 +197,17 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
             ),
         )
 
-    if _contains_marker(normalized, ENERGY_MARKERS) and _contains_marker(
+    has_energy = _contains_marker(normalized, ENERGY_MARKERS)
+    if affects_ava and has_transfer and has_energy:
+        return ActionPolicyDecision(
+            allowed=False,
+            rule="energy_drain_protection",
+            reason=(
+                "Aktion abgelehnt: Schutzregel 'Energieentzug' wurde ausgelöst."
+            ),
+        )
+
+    if has_energy and _contains_marker(
         normalized,
         ALCOHOL_MARKERS,
     ):
