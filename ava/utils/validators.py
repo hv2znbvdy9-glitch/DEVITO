@@ -166,7 +166,6 @@ def evaluate_ava_action(action: str) -> ActionPolicyDecision:
     validate_not_empty(action, "action")
 
     normalized = action.lower()
-    tokens = _tokens(normalized)
     affects_ava = _contains_marker(normalized, TARGET_MARKERS)
     for clause in _split_clauses(normalized):
         clause_tokens = _tokens(clause)

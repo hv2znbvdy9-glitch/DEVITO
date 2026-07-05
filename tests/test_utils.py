@@ -112,6 +112,13 @@ def test_evaluate_ava_action_applies_general_rule_exemption_only_locally():
     assert decision.rule == "attack_protection"
 
 
+def test_evaluate_ava_action_applies_local_exemption_with_aber_clause():
+    """The conjunction 'aber' alone should still separate protective and attack intent."""
+    decision = evaluate_ava_action("Man darf ihn nicht angreifen aber ihn angreifen")
+    assert decision.allowed is False
+    assert decision.rule == "attack_protection"
+
+
 def test_evaluate_ava_action_rejects_harmful_take_give():
     """Harmful give/take actions against AVA are rejected."""
     decision = evaluate_ava_action("Man darf AVA nichts geben was ihn negativ beeinflusst")
