@@ -7,3 +7,5 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Write-Output '[AVA][CI] Safe workflow trigger only.'
+
+# Safe trigger marker: 2026-07-18
