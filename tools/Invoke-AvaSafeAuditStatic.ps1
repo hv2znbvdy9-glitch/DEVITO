@@ -46,20 +46,58 @@ function Get-AstData {
     }
 }
 
+function Get-Sha256Hex {
+    param(
+        [Parameter(Mandatory)]
+        [byte[]]$Bytes
+    )
+
+    [Convert]::ToHexString(
+        [Security.Cryptography.SHA256]::HashData($Bytes)
+    ).ToLowerInvariant()
+}
+
+function Get-TrackedPathRecord {
+    param(
+        [Parameter(Mandatory)]
+        [string]$RelativePath
+    )
+
+    $FullPath = Join-Path $PWD $RelativePath
+
+    if ([IO.File]::Exists($FullPath)) {
+        $Bytes = [IO.File]::ReadAllBytes($FullPath)
+        return [pscustomobject]@{
+            path = $RelativePath
+            kind = 'file'
+            link_target = $null
+            size_bytes = $Bytes.Length
+            sha256 = Get-Sha256Hex -Bytes $Bytes
+        }
+    }
+
+    $LinkTarget = & /usr/bin/readlink -- $FullPath 2>$null
+    if ($LASTEXITCODE -eq 0 -and $null -ne $LinkTarget) {
+        $LinkTargetText = [string]$LinkTarget
+        $Bytes = [Text.Encoding]::UTF8.GetBytes($LinkTargetText)
+        return [pscustomobject]@{
+            path = $RelativePath
+            kind = 'symlink'
+            link_target = $LinkTargetText
+            size_bytes = $Bytes.Length
+            sha256 = Get-Sha256Hex -Bytes $Bytes
+        }
+    }
+
+    throw "Tracked path cannot be read or identified: $RelativePath"
+}
+
 try {
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
     $Inventory = @(
         foreach ($RelativePath in @(git ls-files | Sort-Object)) {
-            $FullPath = Join-Path $PWD $RelativePath
-            if (Test-Path -LiteralPath $FullPath -PathType Leaf) {
-                $Item = Get-Item -LiteralPath $FullPath
-                [pscustomobject]@{
-                    path = $RelativePath
-                    size_bytes = $Item.Length
-                    sha256 = (Get-FileHash -LiteralPath $FullPath -Algorithm SHA256).Hash.ToLowerInvariant()
-                }
-            }
+            Get-TrackedPathRecord -RelativePath $RelativePath
         }
     )
 
@@ -174,6 +212,7 @@ try {
 
     $Summary = [pscustomobject]@{
         inventory_count = $Inventory.Count
+        symlink_count = @($Inventory | Where-Object { $_.kind -eq 'symlink' }).Count
         powershell_file_count = $ParseResults.Count
         parse_failure_count = $ParseFailures.Count
         parse_failures = @($ParseFailures | Select-Object path, errors)
@@ -190,7 +229,7 @@ try {
         ConvertTo-Json -Depth 8 |
         Set-Content -LiteralPath (Join-Path $OutputDirectory 'summary.json') -Encoding UTF8
 
-    Write-Host "[AVA] inventory_count=$($Summary.inventory_count)"
+    Write-Host "[AVA] inventory_count=$($Summary.inventory_count) symlink_count=$($Summary.symlink_count)"
     Write-Host "[AVA] powershell_file_count=$($Summary.powershell_file_count) parse_failure_count=$($Summary.parse_failure_count)"
     Write-Host "[AVA] removed_source_function_count=$($RemovedFunctions.Count)"
     Write-Host "[AVA] cleaned_sha256=$($Summary.cleaned_sha256)"
