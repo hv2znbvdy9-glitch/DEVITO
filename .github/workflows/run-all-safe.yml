@@ -7,12 +7,15 @@ on:
     paths:
       - '.github/workflows/run-all-safe.yml'
       - 'scripts/**/*.ps1'
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
 
 jobs:
   powershell-lint:
+    if: github.event_name != 'pull_request'
     name: PowerShell lint
     runs-on: windows-latest
     steps:
@@ -31,3 +34,37 @@ jobs:
             }
             throw "PSScriptAnalyzer reported findings."
           }
+
+  ephemeral-full-capability-audit:
+    if: github.event_name == 'pull_request' && github.head_ref == 'audit/ephemeral-full-capability-20260718'
+    name: Ephemeral Windows full-capability audit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse audit script before execution
+        shell: pwsh
+        run: |
+          $script = Join-Path $PWD 'scripts/AVA_EPHEMERAL_FULL_CAPABILITY_AUDIT.ps1'
+          $tokens = $null
+          $errors = $null
+          [void][Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors)
+          if (@($errors).Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'PowerShell parser errors detected.'
+          }
+
+      - name: Execute reversible capability audit
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'ava-full-capability-audit'
+          & "$PWD/scripts/AVA_EPHEMERAL_FULL_CAPABILITY_AUDIT.ps1" -AuditRoot "$PWD/scripts" -OutputDirectory $output
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ava-ephemeral-full-capability-audit
+          path: ${{ runner.temp }}/ava-full-capability-audit
+          if-no-files-found: warn
+          retention-days: 7
