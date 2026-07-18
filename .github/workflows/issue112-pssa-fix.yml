@@ -1,6 +1,9 @@
 name: Issue 112 One-Time PSScriptAnalyzer Fix
 
 on:
+  push:
+    paths:
+      - '.github/workflows/issue112-pssa-fix.yml'
   pull_request:
     paths:
       - '.github/workflows/issue112-pssa-fix.yml'
