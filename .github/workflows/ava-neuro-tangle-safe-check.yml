@@ -25,5 +25,22 @@ jobs:
         with:
           show-progress: false
       - name: Parse and validate safe script
+        id: validate
         shell: powershell
-        run: .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+            'PASS' | Set-Content -LiteralPath validation-result.txt -Encoding UTF8
+          }
+          catch {
+            ($_ | Format-List * -Force | Out-String) | Set-Content -LiteralPath validation-result.txt -Encoding UTF8
+            throw
+          }
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ava-neuro-tangle-validation
+          path: validation-result.txt
+          if-no-files-found: error
