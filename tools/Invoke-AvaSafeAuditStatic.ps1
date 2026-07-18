@@ -49,6 +49,7 @@ function Get-AstData {
 function Get-Sha256Hex {
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [byte[]]$Bytes
     )
 
