@@ -7,6 +7,7 @@ on:
       - 'audit/SAFE_AUDIT_TRIGGER.md'
       - 'scripts/AVA_SOC_CORE.ps1'
       - 'scripts/AVA_SOC_CORE_CLEANED.ps1'
+      - 'tools/Invoke-AvaSafeAuditStatic.ps1'
       - '.github/workflows/safe-audit-verified-pr.yml'
 
 permissions:
@@ -17,133 +18,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Clone public PR branch without credentials
+      - name: Build public PR merge tree without credentials
         shell: bash
         run: |
           set -euo pipefail
-          git clone --quiet --depth 1 --branch "$GITHUB_HEAD_REF" "https://github.com/$GITHUB_REPOSITORY.git" repo
-          echo "[AVA] cloned branch: $GITHUB_HEAD_REF"
+          git clone --quiet --depth 1 --branch main "https://github.com/$GITHUB_REPOSITORY.git" repo
+          cd repo
+          git fetch --quiet --depth 1 origin "$GITHUB_HEAD_REF"
+          git -c user.name='AVA Safe Audit' -c user.email='ava-safe-audit@invalid' merge --quiet --no-edit FETCH_HEAD
+          echo "[AVA] prepared merge tree for: $GITHUB_HEAD_REF"
 
-      - name: Inventory, hash, static parse and verify cleaned derivative
+      - name: Inventory, SHA-256, static parse and sanitization verification
         shell: pwsh
         working-directory: repo
         run: |
-          Set-StrictMode -Version Latest
-          $ErrorActionPreference = 'Stop'
-
-          try {
-            $Out = Join-Path $env:RUNNER_TEMP 'ava-safe-audit'
-            New-Item -ItemType Directory -Path $Out -Force | Out-Null
-
-            $Inventory = @(
-              foreach ($RelativePath in @(git ls-files | Sort-Object)) {
-                $FullPath = Join-Path $PWD $RelativePath
-                if (Test-Path -LiteralPath $FullPath -PathType Leaf) {
-                  $Item = Get-Item -LiteralPath $FullPath
-                  [pscustomobject]@{
-                    path = $RelativePath
-                    size_bytes = $Item.Length
-                    sha256 = (Get-FileHash -LiteralPath $FullPath -Algorithm SHA256).Hash.ToLowerInvariant()
-                  }
-                }
-              }
-            )
-            $Inventory | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Out 'inventory.sha256.json') -Encoding UTF8
-            $Inventory | Export-Csv -LiteralPath (Join-Path $Out 'inventory.sha256.csv') -NoTypeInformation -Encoding UTF8
-            Write-Host "[AVA] inventory_count=$($Inventory.Count)"
-
-            $ParseResults = @(
-              foreach ($File in @(Get-ChildItem -LiteralPath $PWD -Recurse -File -Filter '*.ps1' | Sort-Object FullName)) {
-                $Tokens = $null
-                $Errors = $null
-                $null = [System.Management.Automation.Language.Parser]::ParseFile($File.FullName, [ref]$Tokens, [ref]$Errors)
-                [pscustomobject]@{
-                  path = [IO.Path]::GetRelativePath($PWD.Path, $File.FullName)
-                  parsed = (@($Errors).Count -eq 0)
-                  token_count = @($Tokens).Count
-                  errors = @($Errors | ForEach-Object {
-                    [pscustomobject]@{ message = $_.Message; line = $_.Extent.StartLineNumber; column = $_.Extent.StartColumnNumber }
-                  })
-                }
-              }
-            )
-            $ParseResults | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Out 'powershell-parse-results.json') -Encoding UTF8
-            $ParseFailures = @($ParseResults | Where-Object { -not $_.parsed })
-            Write-Host "[AVA] powershell_file_count=$($ParseResults.Count) parse_failure_count=$($ParseFailures.Count)"
-
-            $SourcePath = Join-Path $PWD 'scripts/AVA_SOC_CORE.ps1'
-            $CleanPath = Join-Path $PWD 'scripts/AVA_SOC_CORE_CLEANED.ps1'
-            $SourceText = Get-Content -LiteralPath $SourcePath -Raw
-            $CleanText = Get-Content -LiteralPath $CleanPath -Raw
-
-            $SourceTokens = $null
-            $SourceErrors = $null
-            $SourceAst = [System.Management.Automation.Language.Parser]::ParseFile($SourcePath, [ref]$SourceTokens, [ref]$SourceErrors)
-            $SourceFunctions = if (@($SourceErrors).Count -eq 0) {
-              @($SourceAst.FindAll({ param($Node) $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
-                ForEach-Object { $_.Name } | Sort-Object -Unique)
-            }
-            else {
-              @([regex]::Matches($SourceText, '(?im)^\s*function\s+([A-Za-z0-9_-]+)') |
-                ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-            }
-
-            $CleanTokens = $null
-            $CleanErrors = $null
-            $CleanAst = [System.Management.Automation.Language.Parser]::ParseFile($CleanPath, [ref]$CleanTokens, [ref]$CleanErrors)
-            if (@($CleanErrors).Count -gt 0) {
-              $CleanErrors | ForEach-Object { Write-Host "[AVA][CLEAN-PARSE] line=$($_.Extent.StartLineNumber) column=$($_.Extent.StartColumnNumber) message=$($_.Message)" }
-              throw 'Cleaned script does not parse.'
-            }
-
-            $ForbiddenCommands = @(
-              'Add-Content','Clear-Content','Copy-Item','Invoke-Command','Invoke-Expression','Invoke-RestMethod','Invoke-WebRequest',
-              'New-Item','New-NetFirewallRule','Register-ScheduledTask','Remove-Item','Remove-NetFirewallRule','Remove-ItemProperty',
-              'Restart-Service','Set-Content','Set-Item','Set-ItemProperty','Set-NetFirewallRule','Set-Service','Start-BitsTransfer',
-              'Start-Process','Start-Service','Stop-Process','Stop-Service','Unregister-ScheduledTask'
-            )
-            $CleanCommands = @($CleanAst.FindAll({ param($Node) $Node -is [System.Management.Automation.Language.CommandAst] }, $true) |
-              ForEach-Object { $_.GetCommandName() } | Where-Object { $_ } | Sort-Object -Unique)
-            $CleanFunctions = @($CleanAst.FindAll({ param($Node) $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
-              ForEach-Object { $_.Name } | Sort-Object -Unique)
-
-            $Violations = @($CleanCommands | Where-Object { $_ -in $ForbiddenCommands })
-            $TextPatterns = [ordered]@{
-              env_access = '\$env:'
-              admin_requirement = '(?im)^\s*#requires\s+-RunAsAdministrator'
-              network_types = '(?i)System\.Net|Net\.WebClient|HttpClient|TcpClient|UdpClient'
-              registry_paths = '(?i)HKLM:|HKCU:|Registry::'
-              encoded_or_dynamic = '(?i)EncodedCommand|FromBase64String|DownloadString|Invoke-Expression|\biex\b'
-              assigned_secret = '(?i)(password|passwd|secret|token|api[_-]?key)\s*='
-            }
-            foreach ($Entry in $TextPatterns.GetEnumerator()) {
-              if ($CleanText -match $Entry.Value) { $Violations += $Entry.Key }
-            }
-            if ($Violations.Count -gt 0) { throw "Cleaned script contains prohibited capability: $($Violations -join ', ')" }
-            if ($CleanFunctions.Count -ne 1 -or $CleanFunctions[0] -ne 'Get-AvaSafeAuditSummary') {
-              throw "Cleaned script function allowlist failed: $($CleanFunctions -join ', ')"
-            }
-
-            $RemovedFunctions = @($SourceFunctions | Where-Object { $_ -notin $CleanFunctions })
-            $Summary = [pscustomobject]@{
-              inventory_count = $Inventory.Count
-              powershell_file_count = $ParseResults.Count
-              parse_failure_count = $ParseFailures.Count
-              parse_failures = @($ParseFailures | Select-Object path, errors)
-              source_function_count = $SourceFunctions.Count
-              removed_source_functions = $RemovedFunctions
-              cleaned_sha256 = (Get-FileHash -LiteralPath $CleanPath -Algorithm SHA256).Hash.ToLowerInvariant()
-              cleaned_functions = $CleanFunctions
-              cleaned_violations = $Violations
-            }
-            $Summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Out 'summary.json') -Encoding UTF8
-            Write-Host "[AVA] removed_source_function_count=$($RemovedFunctions.Count) cleaned_sha256=$($Summary.cleaned_sha256)"
-            Write-Host '[AVA][STATIC-PASS] cleaned derivative has no prohibited capability.'
-          }
-          catch {
-            Write-Host "[AVA][AUDIT-ERROR] $($_.Exception.Message)"
-            throw
-          }
+          ./tools/Invoke-AvaSafeAuditStatic.ps1 -OutputDirectory "$env:RUNNER_TEMP/ava-safe-audit"
 
       - name: Isolated test of exactly one cleaned script
         shell: bash
