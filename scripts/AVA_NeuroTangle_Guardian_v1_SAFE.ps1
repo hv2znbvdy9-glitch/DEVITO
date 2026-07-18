@@ -221,7 +221,7 @@ function Get-AVASnapshot {
     }
 }
 
-function New-AVABaselineShape {
+function Get-AVABaselineShape {
     param([Parameter(Mandatory)][object]$Snapshot)
 
     return [pscustomobject][ordered]@{
@@ -237,12 +237,12 @@ function Get-AVABaseline {
     param([Parameter(Mandatory)][object]$Snapshot)
 
     if (-not (Test-Path -LiteralPath $script:BaselineFile -PathType Leaf)) {
-        $baseline = New-AVABaselineShape -Snapshot $Snapshot
+        $baseline = Get-AVABaselineShape -Snapshot $Snapshot
         Write-AVAJson -Path $script:BaselineFile -Data $baseline
         return $baseline
     }
 
-    return Read-AVAJson -Path $script:BaselineFile -DefaultValue (New-AVABaselineShape -Snapshot $Snapshot)
+    return Read-AVAJson -Path $script:BaselineFile -DefaultValue (Get-AVABaselineShape -Snapshot $Snapshot)
 }
 
 function Compare-AVASet {
@@ -291,7 +291,7 @@ function Add-AVAFinding {
     })
 }
 
-function New-AVAAnalysis {
+function Get-AVAAnalysis {
     param(
         [Parameter(Mandatory)][object]$Snapshot,
         [Parameter(Mandatory)][object]$Baseline
@@ -330,7 +330,7 @@ function New-AVAAnalysis {
             -Evidence ($suspiciousProcesses | Select-Object -First 20)
     }
 
-    $current = New-AVABaselineShape -Snapshot $Snapshot
+    $current = Get-AVABaselineShape -Snapshot $Snapshot
     foreach ($delta in @(
             @{ Key = 'NEW_ADMINISTRATOR'; Severity = 95; Current = $current.Administrators; Baseline = $Baseline.Administrators },
             @{ Key = 'NEW_NEIGHBOR'; Severity = 35; Current = $current.Neighbors; Baseline = $Baseline.Neighbors },
@@ -499,7 +499,7 @@ function Invoke-AVACycle {
     Initialize-AVAStorage
     $snapshot = Get-AVASnapshot
     $baseline = Get-AVABaseline -Snapshot $snapshot
-    $analysis = New-AVAAnalysis -Snapshot $snapshot -Baseline $baseline
+    $analysis = Get-AVAAnalysis -Snapshot $snapshot -Baseline $baseline
     $tangle = Add-AVATangle -Snapshot $snapshot -Analysis $analysis
 
     Write-AVAJson -Path $script:SnapshotFile -Data $snapshot
