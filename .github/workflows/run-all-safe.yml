@@ -7,15 +7,12 @@ on:
     paths:
       - '.github/workflows/run-all-safe.yml'
       - 'scripts/**/*.ps1'
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
 
 jobs:
   powershell-lint:
-    if: github.event_name != 'pull_request'
     name: PowerShell lint
     runs-on: windows-latest
     steps:
@@ -34,48 +31,3 @@ jobs:
             }
             throw "PSScriptAnalyzer reported findings."
           }
-
-  ephemeral-full-capability-audit:
-    if: github.event_name == 'pull_request' && github.head_ref == 'audit/ephemeral-full-capability-20260718'
-    name: Ephemeral Windows full-capability audit
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Prepare corrected runtime copy
-        shell: pwsh
-        run: |
-          $source = Join-Path $PWD 'scripts/AVA_EPHEMERAL_FULL_CAPABILITY_AUDIT.ps1'
-          $runtime = Join-Path $env:RUNNER_TEMP 'AVA_EPHEMERAL_FULL_CAPABILITY_AUDIT_RUNTIME.ps1'
-          $content = Get-Content -LiteralPath $source -Raw -Encoding UTF8
-          $content = $content.Replace('$inventory = @(', '$script:inventory = @(')
-          $content = $content.Replace('$parseResults = @(', '$script:parseResults = @(')
-          Set-Content -LiteralPath $runtime -Value $content -Encoding UTF8
-          "AVA_RUNTIME_SCRIPT=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Parse audit script before execution
-        shell: pwsh
-        run: |
-          $tokens = $null
-          $errors = $null
-          [void][Management.Automation.Language.Parser]::ParseFile($env:AVA_RUNTIME_SCRIPT, [ref]$tokens, [ref]$errors)
-          if (@($errors).Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw 'PowerShell parser errors detected.'
-          }
-
-      - name: Execute reversible capability audit
-        shell: pwsh
-        run: |
-          $output = Join-Path $env:RUNNER_TEMP 'ava-full-capability-audit'
-          & $env:AVA_RUNTIME_SCRIPT -AuditRoot "$PWD/scripts" -OutputDirectory $output
-          Copy-Item -LiteralPath $env:AVA_RUNTIME_SCRIPT -Destination (Join-Path $output 'AVA_EPHEMERAL_FULL_CAPABILITY_AUDIT_RUNTIME.ps1') -Force
-
-      - name: Upload audit reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ava-ephemeral-full-capability-audit
-          path: ${{ runner.temp }}/ava-full-capability-audit
-          if-no-files-found: warn
-          retention-days: 7
