@@ -42,5 +42,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ava-neuro-tangle-validation
-          path: validation-result.txt
+          path: |
+            validation-result.txt
+            scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1
           if-no-files-found: error
