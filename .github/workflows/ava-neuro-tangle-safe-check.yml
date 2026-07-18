@@ -1,0 +1,27 @@
+name: AVA Neuro Tangle Safe Check
+
+on:
+  push:
+    paths:
+      - 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'docs/issue-112-neuro-tangle-cleanup.md'
+      - '.github/workflows/ava-neuro-tangle-safe-check.yml'
+  pull_request:
+    paths:
+      - 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'docs/issue-112-neuro-tangle-cleanup.md'
+      - '.github/workflows/ava-neuro-tangle-safe-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse and validate safe script
+        shell: powershell
+        run: .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
