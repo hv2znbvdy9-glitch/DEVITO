@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - '.github/workflows/issue112-self-fix.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/issue112-self-fix.yml'
 
 permissions:
   contents: write
@@ -21,25 +24,23 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $path = 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
-          $content = Get-Content -LiteralPath $path -Raw -Encoding UTF8
-          $old = @'
-          $script:IsAdministrator = ([Security.Principal.WindowsPrincipal]
-              [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-                  [Security.Principal.WindowsBuiltInRole]::Administrator
-              )
-          '@
-          $new = @'
-          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-          $script:IsAdministrator = $principal.IsInRole(
-              [Security.Principal.WindowsBuiltInRole]::Administrator
-          )
-          '@
-          if (-not $content.Contains($old)) {
+          $lines = @(Get-Content -LiteralPath $path -Encoding UTF8)
+          $needle = '$script:IsAdministrator = ([Security.Principal.WindowsPrincipal]'
+          $start = [Array]::IndexOf($lines, $needle)
+          if ($start -lt 0) {
             throw 'Expected administrator detection block was not found.'
           }
-          $content = $content.Replace($old, $new)
-          Set-Content -LiteralPath $path -Value $content -Encoding UTF8 -NoNewline
+          $replacement = @(
+            '$identity = [Security.Principal.WindowsIdentity]::GetCurrent()',
+            '$principal = [Security.Principal.WindowsPrincipal]::new($identity)',
+            '$script:IsAdministrator = $principal.IsInRole(',
+            '    [Security.Principal.WindowsBuiltInRole]::Administrator',
+            ')'
+          )
+          $before = if ($start -gt 0) { @($lines[0..($start - 1)]) } else { @() }
+          $afterIndex = $start + 4
+          $after = if ($afterIndex -lt $lines.Count) { @($lines[$afterIndex..($lines.Count - 1)]) } else { @() }
+          @($before + $replacement + $after) | Set-Content -LiteralPath $path -Encoding UTF8
           .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
       - name: Commit parser fix
         shell: powershell
