@@ -22,6 +22,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - name: Parse and validate safe script
         shell: powershell
         run: .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
