@@ -1,33 +1,86 @@
-name: Run All Safe Checks
+name: Run AVA Safe Audit
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
     paths:
       - '.github/workflows/run-all-safe.yml'
-      - 'scripts/**/*.ps1'
+      - 'scripts/AVA_SAFE_AUDIT_READONLY.ps1'
+  pull_request:
+    paths:
+      - '.github/workflows/run-all-safe.yml'
+      - 'scripts/AVA_SAFE_AUDIT_READONLY.ps1'
 
 permissions:
   contents: read
 
 jobs:
-  powershell-lint:
-    name: PowerShell lint
+  safe-audit:
+    name: Static parse and isolated read-only test
     runs-on: windows-latest
+    timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install PSScriptAnalyzer
-        shell: pwsh
-        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
-      - name: Run PSScriptAnalyzer
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Static parse the single cleaned script
         shell: pwsh
         run: |
-          $excludeRules = @('PSAvoidUsingWriteHost')
-          $results = Invoke-ScriptAnalyzer -Path "$PWD/scripts/*.ps1" -Severity Warning, Error -ExcludeRule $excludeRules
-          if ($results) {
-            $results | ForEach-Object {
-              Write-Host "::warning file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
-            }
-            throw "PSScriptAnalyzer reported findings."
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/scripts/AVA_SAFE_AUDIT_READONLY.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+
+          if (@($errors).Count -gt 0) {
+            $errors | Format-Table -AutoSize
+            throw 'Static PowerShell parse failed.'
           }
+
+      - name: Execute exactly one cleaned script in read-only mode
+        shell: pwsh
+        run: |
+          $before = @(git status --porcelain=v1)
+          if ($before.Count -gt 0) {
+            throw 'Working tree was not clean before the audit.'
+          }
+
+          $json = & "$PWD/scripts/AVA_SAFE_AUDIT_READONLY.ps1" `
+            -Path "$PWD" `
+            -MaximumFiles 5000
+
+          $report = $json | ConvertFrom-Json -Depth 10
+
+          if ($report.RunningAsSystem -ne $false) {
+            throw 'Audit unexpectedly ran as SYSTEM.'
+          }
+
+          if ($report.NetworkCommandsExecuted -ne 0) {
+            throw 'Audit reported network command execution.'
+          }
+
+          if ($report.FilesModified -ne 0) {
+            throw 'Audit reported file modification.'
+          }
+
+          $after = @(git status --porcelain=v1)
+          if ($after.Count -gt 0) {
+            $after | ForEach-Object { Write-Output $_ }
+            throw 'The isolated audit modified the working tree.'
+          }
+
+          [pscustomobject]@{
+            Audit = $report.Audit
+            FilesInventoried = $report.FilesInventoried
+            PowerShellFilesParsed = $report.PowerShellFilesParsed
+            PowerShellFilesWithParseErrors = $report.PowerShellFilesWithParseErrors
+            PowerShellFilesWithReportedHighRiskCommands = $report.PowerShellFilesWithReportedHighRiskCommands
+            FilesModified = $report.FilesModified
+            NetworkCommandsExecuted = $report.NetworkCommandsExecuted
+            RunningAsSystem = $report.RunningAsSystem
+          } | Format-List
