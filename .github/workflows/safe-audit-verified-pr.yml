@@ -22,9 +22,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --quiet --depth 1 --branch main "https://github.com/$GITHUB_REPOSITORY.git" repo
+          git clone --quiet --branch main "https://github.com/$GITHUB_REPOSITORY.git" repo
           cd repo
-          git fetch --quiet --depth 1 origin "$GITHUB_HEAD_REF"
+          git fetch --quiet origin "$GITHUB_HEAD_REF"
           git -c user.name='AVA Safe Audit' -c user.email='ava-safe-audit@invalid' merge --quiet --no-edit FETCH_HEAD
           echo "[AVA] prepared merge tree for: $GITHUB_HEAD_REF"
 
