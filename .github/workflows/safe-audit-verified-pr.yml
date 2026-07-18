@@ -1,0 +1,127 @@
+name: AVA Safe Audit Verified
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'audit/SAFE_AUDIT_TRIGGER.md'
+      - 'scripts/AVA_SOC_CORE.ps1'
+      - 'scripts/AVA_SOC_CORE_CLEANED.ps1'
+      - '.github/workflows/safe-audit-verified-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  safe-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Inventory, hash, parse and verify cleaned script
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $Out = Join-Path $env:RUNNER_TEMP 'ava-safe-audit'
+          New-Item -ItemType Directory -Path $Out -Force | Out-Null
+
+          $Inventory = foreach ($RelativePath in @(git ls-files | Sort-Object)) {
+            $FullPath = Join-Path $PWD $RelativePath
+            if (Test-Path -LiteralPath $FullPath -PathType Leaf) {
+              $Item = Get-Item -LiteralPath $FullPath
+              [pscustomobject]@{
+                path = $RelativePath
+                size_bytes = $Item.Length
+                sha256 = (Get-FileHash -LiteralPath $FullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+              }
+            }
+          }
+          $Inventory | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Out 'inventory.sha256.json') -Encoding UTF8
+
+          $ParseResults = foreach ($File in @(Get-ChildItem -LiteralPath $PWD -Recurse -File -Filter '*.ps1' | Sort-Object FullName)) {
+            $Tokens = $null
+            $Errors = $null
+            $Ast = [System.Management.Automation.Language.Parser]::ParseFile($File.FullName, [ref]$Tokens, [ref]$Errors)
+            [pscustomobject]@{
+              path = [IO.Path]::GetRelativePath($PWD.Path, $File.FullName)
+              parsed = (@($Errors).Count -eq 0)
+              errors = @($Errors | ForEach-Object {
+                [pscustomobject]@{ message = $_.Message; line = $_.Extent.StartLineNumber; column = $_.Extent.StartColumnNumber }
+              })
+            }
+          }
+          $ParseResults | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Out 'powershell-parse-results.json') -Encoding UTF8
+          if (@($ParseResults | Where-Object { -not $_.parsed }).Count -gt 0) {
+            throw 'Static parsing found PowerShell syntax errors.'
+          }
+
+          $CleanPath = Join-Path $PWD 'scripts/AVA_SOC_CORE_CLEANED.ps1'
+          $CleanText = Get-Content -LiteralPath $CleanPath -Raw
+          $Tokens = $null
+          $Errors = $null
+          $CleanAst = [System.Management.Automation.Language.Parser]::ParseFile($CleanPath, [ref]$Tokens, [ref]$Errors)
+          if (@($Errors).Count -gt 0) { throw 'Cleaned script does not parse.' }
+
+          $ForbiddenCommands = @(
+            'Add-Content','Clear-Content','Copy-Item','Invoke-Command','Invoke-Expression','Invoke-RestMethod','Invoke-WebRequest',
+            'New-Item','New-NetFirewallRule','Register-ScheduledTask','Remove-Item','Remove-NetFirewallRule','Remove-ItemProperty',
+            'Restart-Service','Set-Content','Set-Item','Set-ItemProperty','Set-NetFirewallRule','Set-Service','Start-BitsTransfer',
+            'Start-Process','Start-Service','Stop-Process','Stop-Service','Unregister-ScheduledTask'
+          )
+          $Commands = @($CleanAst.FindAll({ param($Node) $Node -is [System.Management.Automation.Language.CommandAst] }, $true) |
+            ForEach-Object { $_.GetCommandName() } | Where-Object { $_ } | Sort-Object -Unique)
+          $Functions = @($CleanAst.FindAll({ param($Node) $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
+            ForEach-Object { $_.Name } | Sort-Object -Unique)
+
+          $Violations = @($Commands | Where-Object { $_ -in $ForbiddenCommands })
+          $TextPatterns = @('\$env:','(?im)^\s*#requires\s+-RunAsAdministrator','(?i)System\.Net|HttpClient|TcpClient|UdpClient',
+            '(?i)HKLM:|HKCU:|Registry::','(?i)EncodedCommand|FromBase64String|DownloadString|Invoke-Expression|\biex\b',
+            '(?i)(password|passwd|secret|token|api[_-]?key)\s*=')
+          foreach ($Pattern in $TextPatterns) {
+            if ($CleanText -match $Pattern) { $Violations += $Pattern }
+          }
+          if ($Violations.Count -gt 0) { throw "Cleaned script contains prohibited capability: $($Violations -join ', ')" }
+          if ($Functions.Count -ne 1 -or $Functions[0] -ne 'Get-AvaSafeAuditSummary') {
+            throw 'Cleaned script must contain exactly one approved pure function.'
+          }
+
+          [pscustomobject]@{
+            inventory_count = $Inventory.Count
+            powershell_file_count = $ParseResults.Count
+            cleaned_sha256 = (Get-FileHash -LiteralPath $CleanPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            cleaned_functions = $Functions
+            violations = $Violations
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Out 'summary.json') -Encoding UTF8
+
+      - name: Isolated test of exactly one cleaned script
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull mcr.microsoft.com/powershell:7.4-alpine-3.20
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --user 65534:65534 \
+            --env POWERSHELL_TELEMETRY_OPTOUT=1 \
+            --env DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+            --mount type=bind,src="$PWD/scripts/AVA_SOC_CORE_CLEANED.ps1",dst=/work/AVA_SOC_CORE_CLEANED.ps1,readonly \
+            mcr.microsoft.com/powershell:7.4-alpine-3.20 \
+            pwsh -NoLogo -NoProfile -NonInteractive -File /work/AVA_SOC_CORE_CLEANED.ps1 -SelfTest \
+            | tee "$RUNNER_TEMP/ava-safe-audit/isolated-test.log"
+          grep -Fq '[AVA][PASS]' "$RUNNER_TEMP/ava-safe-audit/isolated-test.log"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ava-safe-audit-verified-${{ github.run_id }}
+          path: ${{ runner.temp }}/ava-safe-audit
+          if-no-files-found: error
+          retention-days: 14
