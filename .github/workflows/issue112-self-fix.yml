@@ -1,0 +1,51 @@
+name: Issue 112 One-Time Parser Fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/issue112-self-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/issue-112-neuro-tangle-safe-cleanup
+          show-progress: false
+      - name: Patch exact administrator detection block
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+          $content = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+          $old = @'
+          $script:IsAdministrator = ([Security.Principal.WindowsPrincipal]
+              [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+                  [Security.Principal.WindowsBuiltInRole]::Administrator
+              )
+          '@
+          $new = @'
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+          $script:IsAdministrator = $principal.IsInRole(
+              [Security.Principal.WindowsBuiltInRole]::Administrator
+          )
+          '@
+          if (-not $content.Contains($old)) {
+            throw 'Expected administrator detection block was not found.'
+          }
+          $content = $content.Replace($old, $new)
+          Set-Content -LiteralPath $path -Value $content -Encoding UTF8 -NoNewline
+          .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+      - name: Commit parser fix
+        shell: powershell
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+          git commit -m 'fix: correct Windows principal construction'
+          git push origin HEAD:fix/issue-112-neuro-tangle-safe-cleanup
