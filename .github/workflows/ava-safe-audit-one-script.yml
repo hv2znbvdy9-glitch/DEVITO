@@ -1,0 +1,207 @@
+name: AVA Safe Audit - One Script
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/AVA_SOC_V7_SAFE_READONLY.ps1'
+      - '.github/workflows/ava-safe-audit-one-script.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-audit:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository read-only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Inventory files and calculate SHA-256
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $Root = (Get-Location).Path
+          $Files = Get-ChildItem -LiteralPath $Root -Recurse -File |
+              Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' } |
+              Sort-Object FullName
+
+          $Inventory = foreach ($File in $Files) {
+              $Hash = Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256
+              [pscustomobject]@{
+                  Path   = $File.FullName.Substring($Root.Length).TrimStart('\\', '/')
+                  Bytes  = $File.Length
+                  SHA256 = $Hash.Hash
+              }
+          }
+
+          $InventoryPath = Join-Path $env:RUNNER_TEMP 'ava-file-inventory.json'
+          $Inventory | ConvertTo-Json -Depth 4 |
+              Set-Content -LiteralPath $InventoryPath -Encoding UTF8
+
+          '## AVA file inventory and SHA-256' | Add-Content $env:GITHUB_STEP_SUMMARY
+          "Files inventoried: $($Inventory.Count)" | Add-Content $env:GITHUB_STEP_SUMMARY
+          '' | Add-Content $env:GITHUB_STEP_SUMMARY
+          foreach ($Item in $Inventory) {
+              "- ``$($Item.Path)`` — ``$($Item.SHA256)`` — $($Item.Bytes) bytes" |
+                  Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Statically parse every PowerShell file
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $Files = Get-ChildItem -LiteralPath . -Recurse -File -Filter '*.ps1' |
+              Sort-Object FullName
+          $Failures = [System.Collections.Generic.List[object]]::new()
+
+          foreach ($File in $Files) {
+              $Tokens = $null
+              $Errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile(
+                  $File.FullName,
+                  [ref]$Tokens,
+                  [ref]$Errors
+              ) | Out-Null
+
+              foreach ($ErrorRecord in @($Errors)) {
+                  $Failures.Add([pscustomobject]@{
+                      Path    = $File.FullName
+                      Line    = $ErrorRecord.Extent.StartLineNumber
+                      Column  = $ErrorRecord.Extent.StartColumnNumber
+                      Message = $ErrorRecord.Message
+                  })
+              }
+          }
+
+          '' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '## PowerShell static parser' | Add-Content $env:GITHUB_STEP_SUMMARY
+          "PowerShell files parsed: $($Files.Count)" | Add-Content $env:GITHUB_STEP_SUMMARY
+          "Parse findings: $($Failures.Count)" | Add-Content $env:GITHUB_STEP_SUMMARY
+
+          foreach ($Finding in $Failures) {
+              "- ``$($Finding.Path)``:$($Finding.Line):$($Finding.Column) — $($Finding.Message)" |
+                  Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Enforce cleaned-script capability boundary
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $Target = Resolve-Path -LiteralPath 'scripts/AVA_SOC_V7_SAFE_READONLY.ps1'
+          $Tokens = $null
+          $Errors = $null
+          $Ast = [System.Management.Automation.Language.Parser]::ParseFile(
+              $Target.Path,
+              [ref]$Tokens,
+              [ref]$Errors
+          )
+
+          if (@($Errors).Count -gt 0) {
+              $Errors | Format-List Message, Extent
+              throw 'Cleaned script failed static parsing.'
+          }
+
+          $AllowedCommands = @(
+              'Set-StrictMode',
+              'ConvertTo-Json'
+          )
+
+          $Commands = $Ast.FindAll({
+              param($Node)
+              $Node -is [System.Management.Automation.Language.CommandAst]
+          }, $true) | ForEach-Object { $_.GetCommandName() } | Where-Object { $_ }
+
+          $UnexpectedCommands = @($Commands | Where-Object { $_ -notin $AllowedCommands })
+          if ($UnexpectedCommands.Count -gt 0) {
+              throw "Unexpected command(s): $($UnexpectedCommands -join ', ')"
+          }
+
+          $Raw = Get-Content -LiteralPath $Target.Path -Raw
+          $ForbiddenPatterns = @(
+              'https?://',
+              'System\.Net',
+              'TcpClient',
+              'UdpClient',
+              'WebClient',
+              'HttpClient',
+              'Register-ScheduledTask',
+              'New-ScheduledTask',
+              'NetFirewall',
+              'Set-ItemProperty',
+              'New-ItemProperty',
+              'Remove-ItemProperty',
+              'Set-Service',
+              'Start-Service',
+              'Stop-Service',
+              'Invoke-WebRequest',
+              'Invoke-RestMethod',
+              'Start-BitsTransfer',
+              'Start-Process',
+              'Invoke-Expression',
+              'Invoke-Command',
+              'New-PSSession',
+              'Get-Credential',
+              'ExecutionPolicy\s+Bypass',
+              'RunLevel\s+Highest',
+              'UserId\s+["'']?SYSTEM'
+          )
+
+          foreach ($Pattern in $ForbiddenPatterns) {
+              if ($Raw -match $Pattern) {
+                  throw "Forbidden capability marker found: $Pattern"
+              }
+          }
+
+          $SourceHash = (Get-FileHash -LiteralPath 'scripts/AVA_SOC_V7_SAFE.ps1' -Algorithm SHA256).Hash
+          $CleanHash = (Get-FileHash -LiteralPath $Target.Path -Algorithm SHA256).Hash
+
+          '' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '## Cleaned-script boundary' | Add-Content $env:GITHUB_STEP_SUMMARY
+          "Source SHA-256: ``$SourceHash``" | Add-Content $env:GITHUB_STEP_SUMMARY
+          "Cleaned SHA-256: ``$CleanHash``" | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Forbidden capabilities detected: 0' | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Test exactly one cleaned script
+        shell: pwsh
+        env:
+          AVA_ALLOW_NETWORK: '0'
+          AVA_ALLOW_WRITES: '0'
+          AVA_ALLOW_ELEVATION: '0'
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $Target = Resolve-Path -LiteralPath 'scripts/AVA_SOC_V7_SAFE_READONLY.ps1'
+          $Output = & pwsh -NoLogo -NoProfile -NonInteractive -File $Target.Path
+          if ($LASTEXITCODE -ne 0) {
+              throw "Cleaned script exited with code $LASTEXITCODE"
+          }
+
+          $Result = $Output | ConvertFrom-Json
+          if ($Result.Name -ne 'AVA_SOC_V7_SAFE_READONLY') { throw 'Unexpected script identity.' }
+          if ($Result.Mode -ne 'IsolatedReadOnly') { throw 'Unexpected execution mode.' }
+          if ($Result.SecretsPresent) { throw 'Secrets flag must be false.' }
+          if ($Result.WriteOperationsRequested) { throw 'Write flag must be false.' }
+          if ($Result.NetworkOperationsRequested) { throw 'Network flag must be false.' }
+          if ($Result.ElevatedContextRequested) { throw 'Elevation flag must be false.' }
+
+          '' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '## Isolated execution test' | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Scripts executed: **1**' | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Secrets supplied: **0**' | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Requested writes: **0**' | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Requested network operations: **0**' | Add-Content $env:GITHUB_STEP_SUMMARY
+          'Requested elevated/SYSTEM context: **0**' | Add-Content $env:GITHUB_STEP_SUMMARY
+          "Output: ``$Output``" | Add-Content $env:GITHUB_STEP_SUMMARY
