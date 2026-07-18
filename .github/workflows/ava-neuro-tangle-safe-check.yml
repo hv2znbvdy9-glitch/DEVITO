@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+
       - name: Parse and validate safe script
         id: validate
         shell: powershell
@@ -37,6 +38,32 @@ jobs:
             ($_ | Format-List * -Force | Out-String) | Set-Content -LiteralPath validation-result.txt -Encoding UTF8
             throw
           }
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Lint issue 112 scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1',
+            'scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+          )
+          $excludeRules = @('PSAvoidUsingWriteHost')
+          $results = @($files | ForEach-Object {
+            Invoke-ScriptAnalyzer -Path $_ -Severity Warning, Error -ExcludeRule $excludeRules
+          })
+          $results | Select-Object ScriptName, Line, Column, Severity, RuleName, Message |
+            ConvertTo-Json -Depth 5 | Set-Content -LiteralPath psscriptanalyzer-result.json -Encoding UTF8
+          if ($results.Count -gt 0) {
+            $results | ForEach-Object {
+              Write-Host "::warning file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
+            }
+            throw 'Targeted PSScriptAnalyzer reported findings.'
+          }
+
       - name: Upload validation diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,5 +71,7 @@ jobs:
           name: ava-neuro-tangle-validation
           path: |
             validation-result.txt
+            psscriptanalyzer-result.json
             scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1
-          if-no-files-found: error
+            scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+          if-no-files-found: warn
