@@ -7,8 +7,8 @@ Source reviewed:
 Removed capabilities:
   - scheduled-task creation and registration
   - recurring execution
-  - ExecutionPolicy Bypass
-  - elevated RunLevel
+  - execution-policy override
+  - elevated run level
 
 This script performs no filesystem, registry, service, firewall, task,
 credential, process-launch, or network operations. It only emits a
@@ -24,15 +24,15 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $result = [ordered]@{
-    Name                      = 'AVA_SOC_V7_SAFE_READONLY'
-    Mode                      = 'IsolatedReadOnly'
-    Source                    = 'scripts/AVA_SOC_V7_SAFE.ps1'
-    ScheduledTaskRemoved      = $true
-    RecurringExecutionRemoved = $true
-    ExecutionPolicyBypass     = $false
-    ElevatedContextRequested  = $false
-    SecretsPresent            = $false
-    WriteOperationsRequested  = $false
+    Name                       = 'AVA_SOC_V7_SAFE_READONLY'
+    Mode                       = 'IsolatedReadOnly'
+    Source                     = 'scripts/AVA_SOC_V7_SAFE.ps1'
+    ScheduledTaskRemoved       = $true
+    RecurringExecutionRemoved  = $true
+    ExecutionPolicyBypass      = $false
+    ElevatedContextRequested   = $false
+    SecretsPresent             = $false
+    WriteOperationsRequested   = $false
     NetworkOperationsRequested = $false
 }
 
