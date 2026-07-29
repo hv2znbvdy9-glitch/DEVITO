@@ -79,3 +79,5 @@ if ($SelfTest) {
 }
 
 Write-Output $Result
+
+# Safe trigger marker: manual-safe-run-2026-07-29T21-57+02-00
