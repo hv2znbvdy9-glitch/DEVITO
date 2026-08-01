@@ -104,11 +104,16 @@ class WindowsSecurityLab:
 
         try:
             # Führe PowerShell Command aus
+            command = commands[analysis_type]
+            # Validate command is in the predefined allow-list to prevent injection.
+            if command not in commands.values():
+                raise ValueError("Invalid command: not in predefined analysis set")
             result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", commands[analysis_type]],
+                ["powershell", "-NoProfile", "-Command", command],
                 capture_output=True,
                 text=True,
                 timeout=30,
+                shell=False,
             )
 
             if result.returncode == 0 and result.stdout:

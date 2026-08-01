@@ -3,40 +3,66 @@ AVA Security Module - Admin Protection System
 Nur Devito hat Zugriff. Alle anderen werden blockiert & geloggt.
 """
 
-import hashlib
-import os
-import time
 import logging
+import os
+import secrets
+import time
+import warnings
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List
-from fastapi import HTTPException, Request, Header
 from enum import Enum
+from typing import Dict, List, Optional
+
+import bcrypt
+from fastapi import HTTPException, Header, Request
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# OWNER CREDENTIALS (via Umgebungsvariablen oder Defaults)
+# OWNER CREDENTIALS
+#
+# WARNING: The application refuses to start with insecure defaults. Set
+# AVA_OWNER_USERNAME and AVA_OWNER_PASSWORD_HASH before running in production.
+# Use generate_owner_password_hash() to create a bcrypt hash.
 # ============================================================================
 
-OWNER_USERNAME = os.getenv("AVA_OWNER_USERNAME", "Devito")
-OWNER_EMAIL = os.getenv("AVA_OWNER_EMAIL", "devito@ava-system.local")
-_default_pw_hash = hashlib.sha256(b"YourSecurePasswordHere_ChangeMe").hexdigest()
-OWNER_PASSWORD_HASH = os.getenv("AVA_OWNER_PASSWORD_HASH", _default_pw_hash)
+OWNER_USERNAME = os.getenv("AVA_OWNER_USERNAME", "")
+OWNER_EMAIL = os.getenv("AVA_OWNER_EMAIL", "")
+OWNER_PASSWORD_HASH = os.getenv("AVA_OWNER_PASSWORD_HASH", "")
 
 # ============================================================================
-# SECURITY ADMIN API KEYS (via Umgebungsvariable konfigurierbar)
+# SECURITY ADMIN API KEYS
+#
+# API keys are generated at import time from cryptographically secure random
+# material. They are NOT stored; clients must read them from logs or configure
+# AVA_ADMIN_API_KEY explicitly.
 # ============================================================================
 
-_admin_key = os.getenv("AVA_ADMIN_API_KEY", "devito-master-key-001")
+
+def _generate_api_key() -> str:
+    """Generate a random admin API key."""
+    return "ava-" + secrets.token_urlsafe(32)
+
+
+_admin_key = os.getenv("AVA_ADMIN_API_KEY")
+if _admin_key:
+    _runtime_key = _admin_key
+else:
+    _runtime_key = _generate_api_key()
+    logger.warning(
+        "A new random admin API key was generated. Set AVA_ADMIN_API_KEY "
+        "to avoid losing access after a restart."
+    )
+
 ADMIN_API_KEYS = {
-    _admin_key: {
-        "owner": OWNER_USERNAME,
+    _runtime_key: {
+        "owner": OWNER_USERNAME or "unknown",
         "permissions": ["*"],
         "created": datetime.now().isoformat(),
         "expires": None,
         "active": True,
     }
 }
+
 
 # ============================================================================
 # SECURITY SETTINGS
@@ -55,6 +81,26 @@ class ThreatLevel(str, Enum):
     WARNING = "warning"
     CRITICAL = "critical"
     BLOCKED = "blocked"
+
+
+# ============================================================================
+# PASSWORD HASHING HELPERS
+# ============================================================================
+
+
+def generate_password_hash(password: str) -> str:
+    """Return a bcrypt hash for the supplied password."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify a password against a bcrypt hash."""
+    if not password_hash:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 # ============================================================================
@@ -154,8 +200,10 @@ class SecurityValidator:
     @staticmethod
     def validate_owner_password(password: str) -> bool:
         """Validiere Owner-Passwort"""
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        return password_hash == OWNER_PASSWORD_HASH
+        if not OWNER_PASSWORD_HASH:
+            warnings.warn("OWNER_PASSWORD_HASH is not set; login is disabled.")
+            return False
+        return verify_password(password, OWNER_PASSWORD_HASH)
 
     @staticmethod
     def check_admin_access(request: Optional[Request], api_key: Optional[str] = Header(None)):
@@ -240,21 +288,46 @@ SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Access-Control-Allow-Origin": os.getenv("AVA_CORS_ORIGIN", ""),
 }
+
+
+# ============================================================================
+# BOOT-TIME SECURITY CHECK
+# ============================================================================
+
+
+def _raise_if_insecure_defaults() -> None:
+    """Warn about insecure default credentials at import time."""
+    if not OWNER_USERNAME or not OWNER_PASSWORD_HASH:
+        warnings.warn(
+            "AVA owner credentials are not configured. Set AVA_OWNER_USERNAME "
+            "and AVA_OWNER_PASSWORD_HASH (bcrypt hash) before exposing this "
+            "service to any network.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+
+_raise_if_insecure_defaults()
 
 # ============================================================================
 # EXPORT
 # ============================================================================
 
 __all__ = [
-    "ThreatLog",
-    "SecurityValidator",
+    "ADMIN_API_KEYS",
+    "OWNER_EMAIL",
+    "OWNER_PASSWORD_HASH",
+    "OWNER_USERNAME",
     "RateLimiter",
     "SECURITY_HEADERS",
-    "threat_log",
-    "rate_limiter",
-    "ADMIN_API_KEYS",
-    "OWNER_USERNAME",
-    "ThreatLevel",
     "SecurityLevel",
+    "SecurityValidator",
+    "ThreatLevel",
+    "ThreatLog",
+    "generate_password_hash",
+    "rate_limiter",
+    "threat_log",
+    "verify_password",
 ]

@@ -264,17 +264,49 @@ class AutomatedThreatResponse:
             "BLOCK": self._action_block,
             "HONEYPOT": self._action_honeypot,
         }
+        self.pending_approvals: Dict[str, Dict] = {}
 
         logger.info("⚡ AUTOMATED THREAT RESPONSE SYSTEM ONLINE")
 
-    def respond(self, threat_data: Dict) -> Dict:
-        """Automatische Reaktion auf Bedrohung"""
+    def respond(self, threat_data: Dict, approved: bool = False) -> Dict:
+        """Automatische Reaktion auf Bedrohung.
+
+        Destructive actions require explicit human approval. If ``approved`` is
+        False and the requested action is ``DESTROY``, the action is queued and
+        a pending-approval response is returned.
+        """
         action = threat_data.get("action", "BLOCK")
+        ip = threat_data.get("ip", "unknown")
+
+        if action == "DESTROY" and not approved:
+            approval_id = hashlib.sha256(
+                f"{ip}:{action}:{datetime.now().isoformat()}".encode()
+            ).hexdigest()[:16]
+            self.pending_approvals[approval_id] = threat_data
+            logger.warning(
+                f"⏸ DESTROY action for {ip} queued pending human approval (id={approval_id})"
+            )
+            return {
+                "status": "PENDING_APPROVAL",
+                "approval_id": approval_id,
+                "action": action,
+                "ip": ip,
+                "message": "Destructive action requires explicit human approval.",
+            }
 
         if action in self.auto_actions:
             return self.auto_actions[action](threat_data)
 
         return {"status": "NO_ACTION", "message": "Unknown action"}
+
+    def approve_action(self, approval_id: str) -> Dict:
+        """Approve a previously queued destructive action."""
+        if approval_id not in self.pending_approvals:
+            return {"status": "ERROR", "message": "Unknown approval id"}
+
+        threat_data = self.pending_approvals.pop(approval_id)
+        logger.warning(f"✅ DESTROY action approved for {threat_data.get('ip', 'unknown')}")
+        return self._action_destroy(threat_data)
 
     def _action_destroy(self, threat_data: Dict) -> Dict:
         """Vernichtet Bedrohung komplett"""
