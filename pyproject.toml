@@ -51,6 +51,7 @@ dependencies = [
     # Production Features
     "hvac>=2.1.0",  # HashiCorp Vault client
     "cryptography>=42.0.0",  # TLS support
+    "bcrypt>=4.1.0",  # Secure password hashing
 ]
 
 [project.optional-dependencies]
