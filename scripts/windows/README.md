@@ -114,16 +114,16 @@ Dieses Tool ist ausschließlich für **ethisches Training** in autorisierten Umg
 
 - **OS:** Windows 10/11 oder Windows Server 2016+
 - **PowerShell:** Version 5.1+
-- **Rechte:** Administrator (für alle Scripts erforderlich)
+- **Rechte:** Keine Administratorrechte erforderlich für `ava_security_framework.ps1`
 
 ---
 
 ## 🚀 Quick Start
 
-### Schritt 1: Admin-PowerShell öffnen
+### Schritt 1: PowerShell öffnen
 
 ```powershell
-# Rechtsklick auf PowerShell → "Als Administrator ausführen"
+# Normale PowerShell reicht aus
 ```
 
 ### Schritt 2: Execution Policy setzen (falls nötig)
