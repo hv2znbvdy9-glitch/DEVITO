@@ -38,4 +38,4 @@ $result = [ordered]@{
 
 [pscustomobject]$result | ConvertTo-Json -Depth 3 -Compress
 
-# Safe trigger marker: pull-request-safe-run-2026-07-29T21-57+02-00
+# Safe trigger marker: pull-request-safe-run-2026-08-04T13-43+02-00
