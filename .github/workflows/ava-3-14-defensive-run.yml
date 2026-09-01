@@ -52,6 +52,9 @@ jobs:
 
           $analysis = Get-Content -LiteralPath $analysisPath -Raw | ConvertFrom-Json
           '## AVA 3.14 defensive runner snapshot' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '| Metric | Value |' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '| --- | --- |' | Add-Content $env:GITHUB_STEP_SUMMARY
           "| Risk score | $($analysis.score) |" | Add-Content $env:GITHUB_STEP_SUMMARY
           "| Alert count | $($analysis.alert_count) |" | Add-Content $env:GITHUB_STEP_SUMMARY
           "| Mode | Local defensive read-only scan of this ephemeral GitHub runner |" | Add-Content $env:GITHUB_STEP_SUMMARY
