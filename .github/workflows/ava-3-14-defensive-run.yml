@@ -43,9 +43,10 @@ jobs:
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
 
-          & (Join-Path $PWD 'scripts/AVA_3_14_NEXT_LAYER_ALL.ps1') -RunOnce
+          $outputRoot = Join-Path $env:RUNNER_TEMP 'ava-3-14'
+          & (Join-Path $PWD 'scripts/AVA_3_14_NEXT_LAYER_ALL.ps1') -RunOnce -OutputRoot $outputRoot
 
-          $analysisPath = 'C:\Windows\SecurityGuardian\Reports\ava_3_14_latest_analysis.json'
+          $analysisPath = Join-Path $outputRoot 'Reports\ava_3_14_latest_analysis.json'
           if (-not (Test-Path -LiteralPath $analysisPath)) {
             throw "AVA did not produce its analysis report: $analysisPath"
           }
