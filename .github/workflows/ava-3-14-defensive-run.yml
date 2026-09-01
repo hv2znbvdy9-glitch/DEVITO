@@ -1,0 +1,57 @@
+name: AVA 3.14 Defensive Runner Snapshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ava-defensive-snapshot:
+    name: Run AVA 3.14 on an ephemeral Windows runner
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Statically parse AVA 3.14
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/AVA_3_14_NEXT_LAYER_ALL.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+
+          if (@($errors).Count -gt 0) {
+            $errors | Format-Table -AutoSize
+            throw 'Static PowerShell parse failed.'
+          }
+
+      - name: Run one local defensive AVA snapshot
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          & (Join-Path $PWD 'scripts/AVA_3_14_NEXT_LAYER_ALL.ps1') -RunOnce
+
+          $analysisPath = 'C:\Windows\SecurityGuardian\Reports\ava_3_14_latest_analysis.json'
+          if (-not (Test-Path -LiteralPath $analysisPath)) {
+            throw "AVA did not produce its analysis report: $analysisPath"
+          }
+
+          $analysis = Get-Content -LiteralPath $analysisPath -Raw | ConvertFrom-Json
+          '## AVA 3.14 defensive runner snapshot' | Add-Content $env:GITHUB_STEP_SUMMARY
+          "| Risk score | $($analysis.score) |" | Add-Content $env:GITHUB_STEP_SUMMARY
+          "| Alert count | $($analysis.alert_count) |" | Add-Content $env:GITHUB_STEP_SUMMARY
+          "| Mode | Local defensive read-only scan of this ephemeral GitHub runner |" | Add-Content $env:GITHUB_STEP_SUMMARY
