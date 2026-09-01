@@ -37,7 +37,8 @@ param(
     [switch]$InstallTask,
     [switch]$RemoveTask,
     [switch]$ResetBaseline,
-    [int]$IntervalSeconds = 60
+    [int]$IntervalSeconds = 60,
+    [string]$OutputRoot = 'C:\Windows\SecurityGuardian'
 )
 
 Set-StrictMode -Version Latest
@@ -47,7 +48,7 @@ $ErrorActionPreference = 'Stop'
 # CONFIG
 # =========================
 
-$Root       = 'C:\Windows\SecurityGuardian'
+$Root       = $OutputRoot
 $LogDir     = Join-Path $Root 'Logs'
 $StateDir   = Join-Path $Root 'State'
 $ReportDir  = Join-Path $Root 'Reports'
