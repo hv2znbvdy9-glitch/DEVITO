@@ -147,7 +147,7 @@ function Write-Tangle {
         }
     }
 
-    $event = [ordered]@{
+    $tangleEvent = [ordered]@{
         time          = (Get-Date).ToString("o")
         host          = $env:COMPUTERNAME
         user          = $env:USERNAME
@@ -157,11 +157,11 @@ function Write-Tangle {
         data          = $Data
     }
 
-    $raw = $event | ConvertTo-Json -Depth 40 -Compress
+    $raw = $tangleEvent | ConvertTo-Json -Depth 40 -Compress
     $hash = Sha256Text -Text $raw
-    $event["hash"] = $hash
+    $tangleEvent["hash"] = $hash
 
-    Write-JsonLine -Path $TangleLog -Object $event
+    Write-JsonLine -Path $TangleLog -Object $tangleEvent
 
     [ordered]@{
         updated   = (Get-Date).ToString("o")
@@ -440,9 +440,12 @@ function Analyze-Snapshot {
 
     # Risk Ports
     foreach ($c in @($Snapshot.connections)) {
-        if ($null -ne $c.RemotePort) {
-            $remotePort = [int]$c.RemotePort
+        $remotePort = $null
+        if ($c.RemotePort) {
+            try { $remotePort = [int]$c.RemotePort } catch { $remotePort = $null }
+        }
 
+        if ($null -ne $remotePort) {
             if ($RiskPorts -contains $remotePort) {
                 $sev = "MEDIUM"
                 $s = 45
@@ -515,9 +518,9 @@ function Analyze-Snapshot {
     if ($null -eq $baseline) {
         Save-Baseline -Snapshot $Snapshot
     } else {
-        $oldAdmins = @($baseline.admins | ForEach-Object { $_.Name })
+        $oldAdmins = [System.Collections.Generic.HashSet[string]]::new([string[]]@($baseline.admins | ForEach-Object { $_.Name }))
         foreach ($a in @($Snapshot.admins)) {
-            if ($a.Name -and ($oldAdmins -notcontains $a.Name)) {
+            if ($a.Name -and (-not $oldAdmins.Contains($a.Name))) {
                 $delta.new_admins += $a
                 $score += 90
                 $alerts.Add((Add-Alert `
@@ -529,35 +532,35 @@ function Analyze-Snapshot {
             }
         }
 
-        $oldNeighbors = @($baseline.network.neighbors | ForEach-Object { "$($_.IPAddress)|$($_.LinkLayerAddress)" })
+        $oldNeighbors = [System.Collections.Generic.HashSet[string]]::new([string[]]@($baseline.network.neighbors | ForEach-Object { "$($_.IPAddress)|$($_.LinkLayerAddress)" }))
         foreach ($n in @($Snapshot.network.neighbors)) {
             $key = "$($n.IPAddress)|$($n.LinkLayerAddress)"
-            if ($n.IPAddress -and ($oldNeighbors -notcontains $key)) {
+            if ($n.IPAddress -and (-not $oldNeighbors.Contains($key))) {
                 $delta.new_neighbors += $n
                 $score += 25
             }
         }
 
-        $oldBssid = @($baseline.wlan | ForEach-Object { $_.BSSID })
+        $oldBssid = [System.Collections.Generic.HashSet[string]]::new([string[]]@($baseline.wlan | ForEach-Object { $_.BSSID }))
         foreach ($w in @($Snapshot.wlan)) {
-            if ($w.BSSID -and ($oldBssid -notcontains $w.BSSID)) {
+            if ($w.BSSID -and (-not $oldBssid.Contains($w.BSSID))) {
                 $delta.new_wlan_bssid += $w
                 $score += 10
             }
         }
 
-        $oldTasks = @($baseline.tasks | ForEach-Object { "$($_.TaskPath)$($_.TaskName)" })
+        $oldTasks = [System.Collections.Generic.HashSet[string]]::new([string[]]@($baseline.tasks | ForEach-Object { "$($_.TaskPath)$($_.TaskName)" }))
         foreach ($t in @($Snapshot.tasks)) {
             $key = "$($t.TaskPath)$($t.TaskName)"
-            if ($t.TaskName -and ($oldTasks -notcontains $key)) {
+            if ($t.TaskName -and (-not $oldTasks.Contains($key))) {
                 $delta.new_tasks += $t
                 $score += 30
             }
         }
 
-        $oldServices = @($baseline.services | ForEach-Object { $_.Name })
+        $oldServices = [System.Collections.Generic.HashSet[string]]::new([string[]]@($baseline.services | ForEach-Object { $_.Name }))
         foreach ($s in @($Snapshot.services)) {
-            if ($s.Name -and ($oldServices -notcontains $s.Name)) {
+            if ($s.Name -and (-not $oldServices.Contains($s.Name))) {
                 $delta.new_services += $s
                 $score += 20
             }
@@ -739,6 +742,10 @@ AVA 3.14 NEXT LAYER — ALL &middot; Defensiv / Lokal / Read-Only &middot; Gener
 # =========================
 
 function Install-AvaTask {
+    if ($IntervalSeconds -lt 60) {
+        throw "IntervalSeconds muss mindestens 60 sein (New-ScheduledTaskTrigger -RepetitionInterval Minimum: 1 Minute). Aktueller Wert: $IntervalSeconds"
+    }
+
     $action = New-ScheduledTaskAction -Execute "powershell.exe" `
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -RunOnce"
 
