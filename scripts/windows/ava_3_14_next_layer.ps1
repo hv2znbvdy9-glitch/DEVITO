@@ -538,6 +538,12 @@ function Analyze-Snapshot {
             if ($n.IPAddress -and (-not $oldNeighbors.Contains($key))) {
                 $delta.new_neighbors += $n
                 $score += 25
+                $alerts.Add((Add-Alert `
+                    -Severity "LOW" `
+                    -Title "Neuer LAN-Nachbar" `
+                    -Message "Neuer Netzwerk-Nachbar seit Baseline: $($n.IPAddress) ($($n.LinkLayerAddress))" `
+                    -Score 25 `
+                    -Data $n)) | Out-Null
             }
         }
 
@@ -546,6 +552,12 @@ function Analyze-Snapshot {
             if ($w.BSSID -and (-not $oldBssid.Contains($w.BSSID))) {
                 $delta.new_wlan_bssid += $w
                 $score += 10
+                $alerts.Add((Add-Alert `
+                    -Severity "LOW" `
+                    -Title "Neue WLAN-BSSID" `
+                    -Message "Neue WLAN-BSSID seit Baseline: $($w.BSSID) (SSID: $($w.SSID))" `
+                    -Score 10 `
+                    -Data $w)) | Out-Null
             }
         }
 
@@ -555,6 +567,12 @@ function Analyze-Snapshot {
             if ($t.TaskName -and (-not $oldTasks.Contains($key))) {
                 $delta.new_tasks += $t
                 $score += 30
+                $alerts.Add((Add-Alert `
+                    -Severity "MEDIUM" `
+                    -Title "Neue geplante Aufgabe" `
+                    -Message "Neue Scheduled Task seit Baseline: $($t.TaskPath)$($t.TaskName)" `
+                    -Score 30 `
+                    -Data $t)) | Out-Null
             }
         }
 
@@ -563,6 +581,12 @@ function Analyze-Snapshot {
             if ($s.Name -and (-not $oldServices.Contains($s.Name))) {
                 $delta.new_services += $s
                 $score += 20
+                $alerts.Add((Add-Alert `
+                    -Severity "MEDIUM" `
+                    -Title "Neuer laufender Dienst" `
+                    -Message "Neuer laufender Dienst seit Baseline: $($s.Name)" `
+                    -Score 20 `
+                    -Data $s)) | Out-Null
             }
         }
     }
