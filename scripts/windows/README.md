@@ -110,6 +110,43 @@ Dieses Tool ist ausschließlich für **ethisches Training** in autorisierten Umg
 
 ---
 
+### 5. `ava_3_14_next_layer.ps1`
+
+**Zweck:** Lokales, rein defensives Read-Only Sichtbarkeits-System (SOC Snapshot + HUD)
+
+**Features:**
+- 📸 SOC Snapshot (Defender, Firewall, Prozesse, Dienste, Admins, Tasks)
+- 🌐 Netzwerk (TCP-Verbindungen, WLAN, LAN-Nachbarn)
+- 📈 Baseline + Delta-Erkennung (neue Admins, Tasks, Dienste, Nachbarn, WLAN-BSSIDs)
+- 🧮 Risk Score & Alert JSONL
+- 🔗 Tangle Hash Chain (verkettete, manipulationssichere Ereignis-Historie)
+- 🖥️ HTML HUD Portal
+- ⏱️ Optionaler Scheduled Task
+
+**Verwendung:**
+
+```powershell
+# Einmaliger Durchlauf
+.\ava_3_14_next_layer.ps1 -RunOnce
+
+# Dauerschleife (alle 60s)
+.\ava_3_14_next_layer.ps1 -Loop -IntervalSeconds 60
+
+# Als Scheduled Task installieren / entfernen
+.\ava_3_14_next_layer.ps1 -InstallTask
+.\ava_3_14_next_layer.ps1 -RemoveTask
+
+# Baseline zurücksetzen
+.\ava_3_14_next_layer.ps1 -ResetBaseline
+```
+
+**Output:** `C:\Windows\SecurityGuardian\` (Logs, State, Reports, Portal\index.html)
+
+**Hinweis:**
+Rein defensiv, lokal und Read-Only — keine Angriffs-, Exploit-, Scan-, Deauth-, Cracking- oder Payload-Funktionen.
+
+---
+
 ## ⚙️ System-Anforderungen
 
 - **OS:** Windows 10/11 oder Windows Server 2016+
