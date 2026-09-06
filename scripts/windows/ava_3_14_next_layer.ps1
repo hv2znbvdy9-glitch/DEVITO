@@ -101,8 +101,12 @@ function Sha256Text {
     param([Parameter(Mandatory)][string]$Text)
 
     $sha = [System.Security.Cryptography.SHA256]::Create()
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
-    (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+    } finally {
+        $sha.Dispose()
+    }
 }
 
 function Write-JsonLine {
@@ -143,6 +147,7 @@ function Write-Tangle {
         try {
             $prev = (Get-Content -LiteralPath $TangleState -Raw | ConvertFrom-Json).last_hash
         } catch {
+            Write-Warning "[AVA 3.14] Tangle-Status konnte nicht gelesen werden, Hash-Kette wird neu gestartet: $($_.Exception.Message)"
             $prev = $null
         }
     }
