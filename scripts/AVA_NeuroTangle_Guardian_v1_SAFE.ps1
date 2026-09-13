@@ -269,7 +269,7 @@ function Compare-AVASet {
 
 function Add-AVAFinding {
     param(
-        [Parameter(Mandatory)][Collections.Generic.List[object]]$List,
+        [Parameter(Mandatory)][AllowEmptyCollection()][Collections.Generic.List[object]]$List,
         [Parameter(Mandatory)][int]$Severity,
         [Parameter(Mandatory)][string]$Category,
         [Parameter(Mandatory)][string]$Key,
