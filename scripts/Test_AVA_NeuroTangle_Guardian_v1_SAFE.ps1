@@ -48,6 +48,8 @@ $requiredText = @(
     'local authorized Windows host only',
     'No remote scanning',
     'No remote scanning or counterattack',
+    'AVA 01610 1',
+    '$OutputDirectory',
     "[ValidateSet('Once', 'Loop', 'OpenPortal', 'InstallTask', 'UninstallTask')]"
 )
 

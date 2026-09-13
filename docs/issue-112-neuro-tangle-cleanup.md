@@ -1,4 +1,6 @@
-# Issue 112 cleanup: AVA Neuro Tangle Guardian v1 SAFE
+# Issue 112 cleanup: AVA Neuro Tangle Guardian v1 SAFE — AVA 01610 1
+
+Marker: `AVA 01610 1`.
 
 This change extracts the useful local defensive collector from the mixed content in issue #112 and places it in a standalone PowerShell file.
 
@@ -77,4 +79,4 @@ The cleanup excludes invalid JSON, duplicated and unbalanced PowerShell blocks, 
 
 ## Execution status
 
-Creating this pull request does not execute the Windows collector on any device. GitHub Actions performs syntax and prohibited-command checks only.
+GitHub Actions performs syntax checks, prohibited-command checks, targeted linting, and one bounded `Once` cycle inside the ephemeral Windows runner. Runtime output is kept under `RUNNER_TEMP` and is not uploaded. This does not execute the collector on a user's Windows device.

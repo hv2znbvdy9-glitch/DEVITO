@@ -1,6 +1,7 @@
 name: AVA Neuro Tangle Safe Check
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
@@ -38,6 +39,44 @@ jobs:
             ($_ | Format-List * -Force | Out-String) | Set-Content -LiteralPath validation-result.txt -Encoding UTF8
             throw
           }
+
+      - name: Run one bounded AVA 01610 1 cycle
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $output = Join-Path $env:RUNNER_TEMP ('ava-neuro-tangle-01610-1-' + [Guid]::NewGuid().ToString('N'))
+          .\scripts\AVA_NeuroTangle_Guardian_v1_SAFE.ps1 -Mode Once -OutputDirectory $output
+
+          $required = @(
+            'State\baseline.json',
+            'State\tangle_state.json',
+            'Reports\latest_snapshot.json',
+            'Reports\latest_analysis.json',
+            'Reports\sha256_manifest.json',
+            'Portal\ava_neuro_tangle_portal.html',
+            'Logs\events.jsonl',
+            'Logs\tangle.jsonl'
+          )
+          foreach ($relativePath in $required) {
+            $candidate = Join-Path $output $relativePath
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+              throw "Expected runtime output is missing: $candidate"
+            }
+          }
+
+          $snapshotPath = Join-Path $output 'Reports\latest_snapshot.json'
+          $snapshot = Get-Content -LiteralPath $snapshotPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($snapshot.Marker -cne 'AVA 01610 1') {
+            throw 'AVA 01610 1 marker is missing from the runtime snapshot.'
+          }
+
+          $tanglePath = Join-Path $output 'Logs\tangle.jsonl'
+          $tangleLines = @(Get-Content -LiteralPath $tanglePath -Encoding UTF8)
+          if ($tangleLines.Count -ne 1) {
+            throw "Expected exactly one bounded Tangle entry, found $($tangleLines.Count)."
+          }
+
+          Write-Host "AVA 01610 1 bounded GitHub runner cycle passed: $output"
 
       - name: Install PSScriptAnalyzer
         shell: pwsh

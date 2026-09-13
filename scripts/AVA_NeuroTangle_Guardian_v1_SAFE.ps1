@@ -22,7 +22,9 @@ param(
     [ValidateRange(0, 1000000)]
     [int]$MaxCycles = 0,
 
-    [switch]$OpenPortal
+    [switch]$OpenPortal,
+
+    [string]$OutputDirectory = ''
 )
 
 Set-StrictMode -Version Latest
@@ -34,7 +36,9 @@ $script:IsAdministrator = $principal.IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator
 )
 
-$script:Root = if ($script:IsAdministrator) {
+$script:Root = if (-not [string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+} elseif ($script:IsAdministrator) {
     'C:\Windows\SecurityGuardian\AVA_NeuroTangle_SAFE'
 } else {
     Join-Path $env:LOCALAPPDATA 'AVA_NeuroTangle_SAFE'
@@ -54,6 +58,7 @@ $script:AnalysisFile = Join-Path $script:Reports 'latest_analysis.json'
 $script:ManifestFile = Join-Path $script:Reports 'sha256_manifest.json'
 $script:PortalFile = Join-Path $script:Portal 'ava_neuro_tangle_portal.html'
 $script:TaskName = 'AVA_NeuroTangle_60s_SAFE'
+$script:Marker = 'AVA 01610 1'
 $script:RiskPorts = @(21, 23, 135, 139, 445, 3389, 5985, 5986)
 $script:SuspiciousPattern = '(?i)(-enc\b|encodedcommand|invoke-expression|\biex\b|-nop\b|windowstyle\s+hidden|executionpolicy\s+bypass|frombase64string|bitsadmin|certutil|mshta|regsvr32|rundll32)'
 
@@ -164,6 +169,7 @@ function Get-AVASnapshot {
 
     return [pscustomobject][ordered]@{
         AVA = 'NEURO_TANGLE_GUARDIAN_SAFE'
+        Marker = $script:Marker
         Version = '1.0-safe'
         TimestampUtc = Get-AVAUtc
         Computer = Invoke-AVASafeCollect -Name 'Computer' -ScriptBlock {
@@ -363,6 +369,7 @@ function Get-AVAAnalysis {
 
     return [pscustomobject][ordered]@{
         TimestampUtc = Get-AVAUtc
+        Marker = $script:Marker
         RiskScore = $score
         Status = $status
         Decision = $decision
@@ -384,6 +391,7 @@ function Add-AVATangle {
 
     $entry = [ordered]@{
         Type = 'MAIN'
+        Marker = $script:Marker
         Cycle = $cycle
         TimestampUtc = Get-AVAUtc
         PreviousHash = [string]$state.LastHash
@@ -475,7 +483,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid 
 </style>
 </head>
 <body>
-<header><h1>AVA Neuro Tangle Guardian SAFE</h1><p>Local evidence and triage. No remote action.</p></header>
+<header><h1>AVA Neuro Tangle Guardian SAFE · AVA 01610 1</h1><p>Local evidence and triage. No remote action.</p></header>
 <div class="grid">
 <div class="card"><div>Status</div><div class="big">$($Analysis.Status)</div></div>
 <div class="card"><div>Risk score</div><div class="big">$($Analysis.RiskScore)/100</div></div>
@@ -506,6 +514,7 @@ function Invoke-AVACycle {
     Write-AVAJson -Path $script:AnalysisFile -Data $analysis
     Add-AVAJsonLine -Path $script:EventFile -Data ([pscustomobject][ordered]@{
         Type = 'CYCLE'
+        Marker = $script:Marker
         TimestampUtc = Get-AVAUtc
         Cycle = $tangle.Cycle
         RiskScore = $analysis.RiskScore
@@ -528,7 +537,7 @@ function Invoke-AVACycle {
     }
 
     Write-AVAPortal -Snapshot $snapshot -Analysis $analysis -Tangle $tangle
-    Write-Host "AVA cycle $($tangle.Cycle): $($analysis.Status), score $($analysis.RiskScore)/100"
+    Write-Host "$($script:Marker) cycle $($tangle.Cycle): $($analysis.Status), score $($analysis.RiskScore)/100"
 }
 
 function Install-AVALocalTask {
