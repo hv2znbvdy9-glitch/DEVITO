@@ -125,7 +125,7 @@ jobs:
           }
           Test-AVABranchChain -MainEntries $verified.Entries | Out-Null
 
-          $manifest = @(Get-Content -LiteralPath (Join-Path $output 'Reports\sha256_manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
+          $manifest = Get-Content -LiteralPath (Join-Path $output 'Reports\sha256_manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
           foreach ($manifestEntry in $manifest) {
             $file = Join-Path $output ([string]$manifestEntry.Path).Replace('/', '\')
             $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
