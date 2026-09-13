@@ -872,13 +872,13 @@ function Test-AVATangleChain {
     $expectedCycle = 1
     foreach ($entry in $entries) {
         if ([string]$entry.Type -ne 'MAIN' -or [string]$entry.Marker -ne $script:Marker) {
-            throw "AVA chain validation failed at cycle $expectedCycle: invalid type or marker."
+            throw "AVA chain validation failed at cycle $($expectedCycle): invalid type or marker."
         }
         if ([int]$entry.Cycle -ne $expectedCycle -or [string]$entry.PreviousHash -ne $previousHash) {
-            throw "AVA chain validation failed at cycle $expectedCycle: sequence or previous hash mismatch."
+            throw "AVA chain validation failed at cycle $($expectedCycle): sequence or previous hash mismatch."
         }
         if ([string]$entry.CurrentHash -ne (Get-AVAMainHash -Block $entry)) {
-            throw "AVA chain validation failed at cycle $expectedCycle: block hash mismatch."
+            throw "AVA chain validation failed at cycle $($expectedCycle): block hash mismatch."
         }
 
         foreach ($reference in @(
