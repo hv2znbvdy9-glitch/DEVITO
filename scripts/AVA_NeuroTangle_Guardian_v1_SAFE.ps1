@@ -111,11 +111,17 @@ function Resolve-AVALocalPath {
         }
     }
 
-    if ($fullPath.TrimEnd('\\', '/') -eq $pathRoot.TrimEnd('\\', '/')) {
+    $trimCharacters = [char[]]@(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+    $normalizedFullPath = $fullPath.TrimEnd($trimCharacters)
+    $normalizedPathRoot = $pathRoot.TrimEnd($trimCharacters)
+    if ($normalizedFullPath -eq $normalizedPathRoot) {
         throw 'A volume root cannot be used as the AVA output directory.'
     }
 
-    return $fullPath.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    return $normalizedFullPath
 }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -161,7 +167,11 @@ function Test-AVAContainedPath {
     param([Parameter(Mandatory)][string]$Path)
 
     $fullPath = [IO.Path]::GetFullPath($Path)
-    $prefix = $script:Root.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $trimCharacters = [char[]]@(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+    $prefix = $script:Root.TrimEnd($trimCharacters) + [IO.Path]::DirectorySeparatorChar
     return $fullPath.Equals($script:Root, [StringComparison]::OrdinalIgnoreCase) -or
         $fullPath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
 }
@@ -1133,7 +1143,9 @@ function Get-AVAManifest {
     return @($paths | ForEach-Object {
         $hash = Get-FileHash -LiteralPath $_ -Algorithm SHA256
         [pscustomobject][ordered]@{
-            Path = [IO.Path]::GetFullPath($_).Substring($script:Root.Length).TrimStart('\', '/').Replace('\', '/')
+            Path = [IO.Path]::GetFullPath($_).Substring($script:Root.Length).TrimStart(
+                [char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+            ).Replace('\', '/')
             Algorithm = 'SHA256'
             Hash = $hash.Hash.ToLowerInvariant()
             Length = (Get-Item -LiteralPath $_).Length
