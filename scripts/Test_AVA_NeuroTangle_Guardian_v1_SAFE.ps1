@@ -64,7 +64,7 @@ function Test-AVAAstPolicy {
 
     $allowedCommands = @(
         'Set-StrictMode', 'Test-Path', 'Join-Path', 'Split-Path',
-        'New-Item', 'Get-Item', 'Get-ChildItem', 'Get-Content', 'Get-Date',
+        'New-Item', 'Move-Item', 'Get-Item', 'Get-ChildItem', 'Get-Content', 'Get-Date',
         'Get-PSDrive', 'Measure-Object', 'ConvertTo-Json', 'ConvertFrom-Json',
         'Get-CimInstance', 'Get-MpComputerStatus', 'Get-NetFirewallProfile',
         'Get-LocalGroup', 'Get-LocalGroupMember', 'Get-NetTCPConnection',
@@ -112,6 +112,10 @@ function Test-AVAAstPolicy {
         if ($lowerName -eq 'new-item' -and
             $commandAst.Extent.Text -notmatch '(?i)-ItemType\s+Directory') {
             throw "New-Item is limited to AVA directory creation in '$SourceName'."
+        }
+        if ($lowerName -eq 'move-item' -and
+            $commandAst.Extent.Text.Trim() -cne 'Move-Item -LiteralPath $temporary -Destination $Path -Force') {
+            throw "Move-Item is limited to same-directory atomic replacement in '$SourceName'."
         }
     }
 

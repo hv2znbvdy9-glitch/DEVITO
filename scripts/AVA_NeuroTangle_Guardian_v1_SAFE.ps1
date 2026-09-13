@@ -217,7 +217,7 @@ function Write-AVAAtomicText {
     }
     [IO.File]::WriteAllText($temporary, $Text, $script:Utf8NoBom)
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
-        [IO.File]::Replace($temporary, $Path, $null)
+        Move-Item -LiteralPath $temporary -Destination $Path -Force
     }
     else {
         [IO.File]::Move($temporary, $Path)
