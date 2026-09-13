@@ -343,7 +343,7 @@ function Get-AVAAnalysis {
             @{ Key = 'NEW_SCHEDULED_TASK'; Severity = 65; Current = $current.ScheduledTasks; Baseline = $Baseline.ScheduledTasks },
             @{ Key = 'NEW_SERVICE'; Severity = 60; Current = $current.Services; Baseline = $Baseline.Services }
         )) {
-        $newItems = Compare-AVASet -Current @($delta.Current) -Baseline @($delta.Baseline)
+        $newItems = @(Compare-AVASet -Current @($delta.Current) -Baseline @($delta.Baseline))
         if ($newItems.Count -gt 0) {
             Add-AVAFinding -List $findings -Severity $delta.Severity -Category 'BASELINE' -Key $delta.Key `
                 -Description "$($delta.Key) compared with the local baseline." `
