@@ -145,7 +145,7 @@ def neuron_model(as_json: bool = typer.Option(False, "--json", help="Print JSON 
     analysis = get_neuron_model_analysis()
 
     if as_json:
-        console.print_json(json.dumps(analysis.to_dict(), ensure_ascii=False))
+        typer.echo(json.dumps(analysis.to_dict(), ensure_ascii=False))
         return
 
     console.print(f"[bold cyan]{analysis.title}[/bold cyan]")
