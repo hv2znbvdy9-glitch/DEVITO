@@ -81,4 +81,3 @@ def get_neuron_model_analysis() -> NeuronModelAnalysis:
             "Toward Reference-Grade neuron models (Communications Biology, 2026)",
         ],
     )
-
