@@ -1,5 +1,6 @@
-"""CLI tests for AVA start command."""
+"""CLI tests for AVA commands."""
 
+import json
 import sys
 import types
 
@@ -38,3 +39,29 @@ def test_start_invokes_main_in_normal_mode(monkeypatch: pytest.MonkeyPatch) -> N
     assert result.exit_code == 0
     assert "START - JETZT!" in result.output
     assert calls == ["called"]
+
+
+def test_neuron_model_command_outputs_analysis() -> None:
+    """Ensure the neuron-model command exposes the bundled analysis."""
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["neuron-model"])
+
+    assert result.exit_code == 0
+    assert "Biologisch plausible Neuronenmodelle" in result.output
+    assert "Hay et al." in result.output
+    assert "DeepDendrite" in result.output
+    assert "Leaky-Integrate-and-Fire-Neuron" in result.output
+
+
+def test_neuron_model_command_outputs_json() -> None:
+    """Ensure the neuron-model command can return machine-readable output."""
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["neuron-model", "--json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["title"] == "Biologisch plausible Neuronenmodelle"
+    assert "Schicht-5-Pyramidenzelle" in payload["candidate"]
+    assert any("DeepDendrite" in item for item in payload["single_neuron_highlights"])
