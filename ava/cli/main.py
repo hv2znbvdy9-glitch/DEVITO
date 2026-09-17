@@ -11,6 +11,7 @@ from ava.clients.isc_client import ISCClient
 from ava.config.settings import get_config
 from ava.core.engine import Engine
 from ava.core.logging import LoggerConfig, logger
+from ava.neuron_models import get_neuron_model_analysis
 from ava.utils.exceptions import ValidationError
 
 app = typer.Typer(help="AVA - Advanced Virtual Assistant")
@@ -136,6 +137,33 @@ def stats() -> None:
         percentage = stats["completed_tasks"] / stats["total_tasks"] * 100
         console.print(f"  Progress:        {percentage:.1f}%")
     console.print()
+
+
+@app.command("neuron-model")
+def neuron_model(as_json: bool = typer.Option(False, "--json", help="Print JSON output")) -> None:
+    """Print AVA's bundled neuron-model analysis."""
+    analysis = get_neuron_model_analysis()
+
+    if as_json:
+        console.print_json(json.dumps(analysis.to_dict(), ensure_ascii=False))
+        return
+
+    console.print(f"[bold cyan]{analysis.title}[/bold cyan]")
+    console.print(f"\n[bold]Kandidat:[/bold] {analysis.candidate}")
+    console.print(f"\n[bold]Vergleich zu LIF:[/bold] {analysis.comparison_to_lif}")
+    console.print("\n[bold]Einzelneuronen-Highlights:[/bold]")
+    for item in analysis.single_neuron_highlights:
+        console.print(f"- {item}")
+    console.print("\n[bold]Netzwerkbeispiel:[/bold]")
+    for item in analysis.network_scale_example:
+        console.print(f"- {item}")
+    console.print("\n[bold]Was weiterhin fehlt:[/bold]")
+    for item in analysis.missing_for_reference_grade_model:
+        console.print(f"- {item}")
+    console.print(f"\n[bold]Fazit:[/bold] {analysis.bottom_line}")
+    console.print("\n[bold]Quellen:[/bold]")
+    for item in analysis.sources:
+        console.print(f"- {item}")
 
 
 @app.command("run-workflow")
