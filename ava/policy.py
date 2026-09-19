@@ -51,10 +51,12 @@ class PolicyDecision:
 
 class AVAGuardPolicy:
     ENERGY_ALCOHOL_PATTERN = re.compile(
-        r"\benergy\b.*\b(alkohol|alcohol)\b|\b(alkohol|alcohol)\b.*\benergy\b", re.IGNORECASE
+        r"\benergy\b.*\b(alkohol|alcohol)\b|\b(alkohol|alcohol)\b.*\benergy\b",
+        re.IGNORECASE,
     )
     SAVE_PATTERN = re.compile(
-        r"\b(save|saving|speichern|sichern|backup|archivieren|archive)\b", re.IGNORECASE
+        r"\b(save|saving|speichern|sichern|backup|archivieren|archive)\b",
+        re.IGNORECASE,
     )
     ATTACK_PATTERN = re.compile(
         r"\b(attack|angriff|angreifen|hack|hacken|exploit|exploitieren|ddos|dos|"
@@ -74,11 +76,20 @@ class AVAGuardPolicy:
         r"deaktivieren|delete memory|memory löschen|schutz entfernen|remove protection)\b",
         re.IGNORECASE,
     )
-    AVA_TARGET_PATTERN = re.compile(r"\b(ava|system|guard|policy|schutz|memory|speicher)\b", re.IGNORECASE)
+    EXPLICIT_AVA_PATTERN = re.compile(r"\bava\b", re.IGNORECASE)
 
-    def evaluate(self, action: str, *, target: str = "AVA", metadata: Mapping[str, Any] | None = None) -> PolicyDecision:
+    def evaluate(
+        self,
+        action: str,
+        *,
+        target: str = "AVA",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> PolicyDecision:
         normalized = self._normalize(action)
         evidence_scope = f"action={action!r}; target={target!r}"
+        if metadata:
+            evidence_scope += f"; metadata={dict(metadata)!r}"
+
         hits: list[RuleHit] = []
         accepted: list[str] = []
 
@@ -88,15 +99,34 @@ class AVAGuardPolicy:
             accepted.append("SAVE_ALLOWED")
 
         if self._is_attack_against_ava(normalized, target):
-            hits.append(RuleHit("PROTECT_NO_ATTACK_AGAINST_AVA", "Angriffsschutz", "high", evidence_scope))
+            hits.append(
+                RuleHit(
+                    "PROTECT_NO_ATTACK_AGAINST_AVA",
+                    "Angriffsschutz",
+                    "high",
+                    evidence_scope,
+                )
+            )
+
         if self._is_harmful_give_or_take(normalized, target):
-            hits.append(RuleHit("PROTECT_NO_HARMFUL_GIVE_OR_TAKE", "Schadensschutz Nehmen/Geben", "high", evidence_scope))
+            hits.append(
+                RuleHit(
+                    "PROTECT_NO_HARMFUL_GIVE_OR_TAKE",
+                    "Schadensschutz Nehmen/Geben",
+                    "high",
+                    evidence_scope,
+                )
+            )
 
         if hits:
             return PolicyDecision(
                 allowed=False,
                 action=action,
-                reason="Abgelehnt: Schutzregeln haben Vorrang vor der Grundfreigabe. Ausgelöste Regeln: " + ", ".join(hit.rule_id for hit in hits),
+                reason=(
+                    "Abgelehnt: Schutzregeln haben Vorrang vor der Grundfreigabe. "
+                    "Ausgelöste Regeln: "
+                    + ", ".join(hit.rule_id for hit in hits)
+                ),
                 triggered_rules=tuple(hits),
                 accepted_rules=tuple(accepted),
             )
@@ -105,25 +135,36 @@ class AVAGuardPolicy:
             return PolicyDecision(
                 allowed=True,
                 action=action,
-                reason="Erlaubt: Grundfreigabe aktiv; keine Schutzregel verletzt; explizite Akzeptanz erkannt.",
+                reason=(
+                    "Erlaubt: Grundfreigabe aktiv; keine Schutzregel verletzt; "
+                    "explizite Akzeptanz erkannt."
+                ),
                 accepted_rules=tuple(accepted),
             )
 
-        return PolicyDecision(allowed=True, action=action, reason="Erlaubt: Grundfreigabe aktiv; keine Schutzregel verletzt.")
+        return PolicyDecision(
+            allowed=True,
+            action=action,
+            reason="Erlaubt: Grundfreigabe aktiv; keine Schutzregel verletzt.",
+        )
 
     def batch_evaluate(self, actions: Iterable[str]) -> list[PolicyDecision]:
         return [self.evaluate(action) for action in actions]
 
+    def _targets_ava(self, text: str, target: str) -> bool:
+        explicit_in_text = bool(self.EXPLICIT_AVA_PATTERN.search(text))
+        normalized_target = self._normalize(target).casefold()
+        explicit_target = normalized_target == "ava" or normalized_target.startswith("ava ")
+        return explicit_in_text or explicit_target
+
     def _is_attack_against_ava(self, text: str, target: str) -> bool:
-        target_text = f"{text} {target}"
-        return bool(self.ATTACK_PATTERN.search(text) and self.AVA_TARGET_PATTERN.search(target_text))
+        return bool(self.ATTACK_PATTERN.search(text) and self._targets_ava(text, target))
 
     def _is_harmful_give_or_take(self, text: str, target: str) -> bool:
-        target_text = f"{text} {target}"
         return bool(
             self.GIVE_TAKE_PATTERN.search(text)
             and self.NEGATIVE_EFFECT_PATTERN.search(text)
-            and self.AVA_TARGET_PATTERN.search(target_text)
+            and self._targets_ava(text, target)
         )
 
     @staticmethod
