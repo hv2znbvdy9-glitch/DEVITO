@@ -52,6 +52,7 @@ $Root       = $OutputRoot
 $LogDir     = Join-Path $Root 'Logs'
 $StateDir   = Join-Path $Root 'State'
 $ReportDir  = Join-Path $Root 'Reports'
+$EventsDir  = Join-Path $ReportDir 'AVA_EVENTS'
 $PortalDir  = Join-Path $Root 'Portal'
 
 $TaskName   = 'AVA_3_14_NEXT_LAYER_ALL'
@@ -73,6 +74,7 @@ $AlertLog     = Join-Path $LogDir 'ava_3_14_alerts.jsonl'
 $TangleLog    = Join-Path $LogDir 'ava_3_14_tangle.jsonl'
 $TangleState  = Join-Path $StateDir 'ava_3_14_tangle_state.json'
 $BaselinePath = Join-Path $StateDir 'ava_3_14_baseline.json'
+$EventState   = Join-Path $StateDir 'ava_3_14_event_state.json'
 $PortalHtml   = Join-Path $PortalDir 'index.html'
 $SnapshotJson = Join-Path $ReportDir 'ava_3_14_latest_snapshot.json'
 $AnalysisJson = Join-Path $ReportDir 'ava_3_14_latest_analysis.json'
@@ -102,7 +104,7 @@ $SuspiciousCmdPatterns = @(
 # =========================
 
 function Initialize-GuardianDirectory {
-    foreach ($d in @($Root, $LogDir, $StateDir, $ReportDir, $PortalDir)) {
+    foreach ($d in @($Root, $LogDir, $StateDir, $ReportDir, $EventsDir, $PortalDir)) {
         if (-not (Test-Path -LiteralPath $d)) {
             New-Item -ItemType Directory -Path $d -Force | Out-Null
         }
@@ -136,6 +138,88 @@ function Write-JsonLine {
 
     $Object | ConvertTo-Json -Depth 40 -Compress |
         Add-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Get-Sha256FileHex {
+    param([Parameter(Mandatory)][string]$Path)
+
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Save-ImmutableSnapshotArtifacts {
+    param(
+        [Parameter(Mandatory)][object]$Snapshot,
+        [Parameter(Mandatory)][object]$Analysis
+    )
+
+    $capturedAtUtc = (Get-Date).ToUniversalTime()
+    $capturedAtIso = $capturedAtUtc.ToString('o')
+    $eventId = [guid]::NewGuid().ToString()
+    $captureGroupId = $eventId
+    $eventFolderName = '{0}_{1}' -f $capturedAtUtc.ToString('yyyyMMdd_HHmmss_fffZ'), $eventId
+    $eventDir = Join-Path $EventsDir $eventFolderName
+
+    New-Item -ItemType Directory -Path $eventDir -Force | Out-Null
+
+    $snapshotPath = Join-Path $eventDir 'snapshot_original.json'
+    $analysisPath = Join-Path $eventDir 'analysis_original.json'
+    $manifestPath = Join-Path $eventDir 'manifest.json'
+
+    $snapshotJson = $Snapshot | ConvertTo-Json -Depth 40
+    $analysisJson = $Analysis | ConvertTo-Json -Depth 40
+
+    Set-Content -LiteralPath $snapshotPath -Value $snapshotJson -Encoding UTF8
+    Set-Content -LiteralPath $analysisPath -Value $analysisJson -Encoding UTF8
+
+    $snapshotSha = Get-Sha256FileHex -Path $snapshotPath
+    $analysisSha = Get-Sha256FileHex -Path $analysisPath
+
+    Set-Content -LiteralPath (Join-Path $eventDir 'snapshot_original.sha256') -Value $snapshotSha -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $eventDir 'analysis_original.sha256') -Value $analysisSha -Encoding UTF8
+
+    $previousEventHash = $null
+    if (Test-Path -LiteralPath $EventState) {
+        try {
+            $previousEventHash = (Get-Content -LiteralPath $EventState -Raw | ConvertFrom-Json).last_event_hash
+        }
+        catch {
+            $previousEventHash = $null
+        }
+    }
+
+    $manifest = [ordered]@{
+        schema                 = 'ava-evidence-event/v1'
+        event_id               = $eventId
+        capture_group_id       = $captureGroupId
+        captured_at_utc        = $capturedAtIso
+        source_device_id       = $env:COMPUTERNAME
+        original_snapshot_file = 'snapshot_original.json'
+        original_analysis_file = 'analysis_original.json'
+        snapshot_sha256        = $snapshotSha
+        analysis_sha256        = $analysisSha
+        previous_event_hash    = $previousEventHash
+    }
+
+    $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    $manifestSha = Get-Sha256FileHex -Path $manifestPath
+
+    [ordered]@{
+        updated_at_utc = $capturedAtIso
+        last_event_id  = $eventId
+        last_event_hash = $manifestSha
+        last_event_path = $eventDir
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $EventState -Encoding UTF8
+
+    Set-Content -LiteralPath $SnapshotJson -Value $snapshotJson -Encoding UTF8
+    Set-Content -LiteralPath $AnalysisJson -Value $analysisJson -Encoding UTF8
+
+    return [pscustomobject]@{
+        event_id         = $eventId
+        capture_group_id = $captureGroupId
+        captured_at_utc  = $capturedAtIso
+        event_dir        = $eventDir
+        manifest_sha256  = $manifestSha
+    }
 }
 
 function Invoke-LogRotation {
@@ -832,15 +916,14 @@ function Invoke-GuardianCycle {
 
     $snapshot = Get-LocalSnapshot
     $analysis = Measure-SnapshotRisk -Snapshot $snapshot
-
-    $snapshot | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath $SnapshotJson -Encoding UTF8
-    $analysis | ConvertTo-Json -Depth 40 | Set-Content -LiteralPath $AnalysisJson -Encoding UTF8
+    $immutableEvent = Save-ImmutableSnapshotArtifacts -Snapshot $snapshot -Analysis $analysis
 
     Write-JsonLine -Path $EventLog -Object ([ordered]@{
             time     = (Get-Date).ToString('o')
             category = 'snapshot'
             severity = Get-SeverityFromScore -Score $analysis.score
             message  = "Snapshot verarbeitet: score=$($analysis.score) alerts=$($analysis.alert_count)"
+            event_id = $immutableEvent.event_id
         })
 
     Write-Tangle -Type 'snapshot_analysis' -Summary "score=$($analysis.score) alerts=$($analysis.alert_count)" -Data ([ordered]@{
@@ -848,6 +931,8 @@ function Invoke-GuardianCycle {
             analysis_time = $analysis.time
             score         = $analysis.score
             alert_count   = $analysis.alert_count
+            event_id      = $immutableEvent.event_id
+            event_dir     = $immutableEvent.event_dir
         })
 
     Write-HudPortal -Snapshot $snapshot -Analysis $analysis
