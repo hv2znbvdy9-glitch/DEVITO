@@ -121,6 +121,54 @@ class WindowsSecurityMonitor:
 
         return status
 
+    def _run_defense_script(self, action: str, output_dir: str = "") -> str:
+        """Helper to run the AVA-01610-1 Port 445 defense script."""
+        if not self.is_windows:
+            logger.warning("Not running on Windows")
+            return ""
+
+        script_path = Path(__file__).resolve().parents[2] / "scripts" / "windows" / "ava_01610_1_reversible_445_defense.ps1"
+        if not script_path.exists():
+            logger.error(f"Defense script not found at {script_path}")
+            return ""
+
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-File", str(script_path),
+            "-Action", action
+        ]
+        if output_dir:
+            cmd.extend(["-OutputDirectory", output_dir])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                logger.error(f"Error running defense script for action {action}: {result.stderr}")
+                return ""
+        except Exception as e:
+            logger.error(f"Exception running defense script: {e}")
+            return ""
+
+    def audit_port_445(self, output_dir: str = "") -> str:
+        """Audit Port 445 status."""
+        return self._run_defense_script("Audit", output_dir)
+
+    def enforce_port_445(self, output_dir: str = "") -> str:
+        """Enforce local firewall Port 445 blocking."""
+        return self._run_defense_script("Enforce", output_dir)
+
+    def rollback_port_445(self, output_dir: str = "") -> str:
+        """Rollback local firewall Port 445 blocking."""
+        return self._run_defense_script("Rollback", output_dir)
+
+    def verify_port_445_chain(self, output_dir: str = "") -> str:
+        """Verify Port 445 immutable chain integrity."""
+        return self._run_defense_script("VerifyChain", output_dir)
+
     def disable_rdp(self) -> bool:
         """Disable RDP access (requires admin)."""
         if not self.is_windows:
