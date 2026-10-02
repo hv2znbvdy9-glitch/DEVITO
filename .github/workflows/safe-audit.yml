@@ -41,15 +41,30 @@ jobs:
 
           $Inventory = foreach ($RelativePath in $Files) {
             $FullPath = Join-Path $PWD $RelativePath
-            if (-not (Test-Path -LiteralPath $FullPath -PathType Leaf)) {
+            if (Test-Path -LiteralPath $FullPath -PathType Leaf) {
+              $Item = Get-Item -LiteralPath $FullPath
+              [pscustomobject]@{
+                path = $RelativePath
+                size_bytes = $Item.Length
+                sha256 = (Get-FileHash -LiteralPath $FullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+                source = 'worktree'
+              }
               continue
             }
 
-            $Item = Get-Item -LiteralPath $FullPath
+            $Bytes = git show "HEAD:$RelativePath" 2>$null
+            if ($LASTEXITCODE -ne 0) {
+              throw "Tracked file could not be read from worktree or git object: $RelativePath"
+            }
+
+            $Hash = [System.Security.Cryptography.SHA256]::HashData(
+              [System.Text.Encoding]::UTF8.GetBytes(($Bytes -join [Environment]::NewLine))
+            )
             [pscustomobject]@{
               path = $RelativePath
-              size_bytes = $Item.Length
-              sha256 = (Get-FileHash -LiteralPath $FullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+              size_bytes = [System.Text.Encoding]::UTF8.GetByteCount(($Bytes -join [Environment]::NewLine))
+              sha256 = ([Convert]::ToHexString($Hash)).ToLowerInvariant()
+              source = 'git-object'
             }
           }
 
