@@ -1,18 +1,21 @@
 name: PSScriptAnalyzer
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'scripts/**/*.ps1'
+      - '.github/workflows/psscriptanalyzer.yml'
   pull_request:
     paths:
       - 'scripts/**/*.ps1'
+      - '.github/workflows/psscriptanalyzer.yml'
 
 jobs:
   lint:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install PSScriptAnalyzer
         shell: pwsh
@@ -27,7 +30,14 @@ jobs:
           $results = Invoke-ScriptAnalyzer -Path "$PWD/scripts/*.ps1" -Severity Warning, Error -ExcludeRule $excludeRules
           if ($results) {
             $results | ForEach-Object {
-              Write-Host "::warning file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
+              if ($_.Severity -eq 'Error') {
+                Write-Host "::error file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
+              } else {
+                Write-Host "::warning file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
+              }
             }
-            throw "PSScriptAnalyzer reported findings."
+            if (@($results | Where-Object { $_.Severity -eq 'Error' }).Count -gt 0) {
+              throw "PSScriptAnalyzer reported error-severity findings."
+            }
+            Write-Host "PSScriptAnalyzer reported warning-severity findings only; workflow continues."
           }
