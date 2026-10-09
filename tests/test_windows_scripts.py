@@ -1,9 +1,14 @@
 from pathlib import Path
+import shutil
+import subprocess
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "windows" / "ava_security_framework.ps1"
 DEFENSE_SCRIPT_PATH = REPO_ROOT / "scripts" / "windows" / "ava_01610_1_reversible_445_defense.ps1"
+POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 
 
 def test_ava_security_framework_is_read_only_by_default():
@@ -43,6 +48,7 @@ def test_ava_01610_1_reversible_445_defense_script_integrity():
     assert "Get-NetTCPConnection" in content
     assert "LanmanServer" in content
     assert "Get-SmbServerConfiguration" in content
+    assert "Hostname = $env:COMPUTERNAME" in content
 
     # Step 2: Context validation (Domain vs Private vs Public)
     assert "Get-NetConnectionProfile" in content
@@ -61,6 +67,23 @@ def test_ava_01610_1_reversible_445_defense_script_integrity():
     assert "chain.jsonl" in content
     assert "PreviousHash" in content
     assert "SHA256" in content or "SHA-256" in content or "sha256" in content
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is not installed")
+def test_ava_01610_1_defense_script_parses():
+    script_path = str(DEFENSE_SCRIPT_PATH).replace("'", "''")
+    command = (
+        "$tokens = $null; $errors = $null; "
+        f"[System.Management.Automation.Language.Parser]::ParseFile('{script_path}', "
+        "[ref]$tokens, [ref]$errors) | Out-Null; "
+        "if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }"
+    )
+    subprocess.run(
+        [POWERSHELL, "-NoProfile", "-Command", command],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_windows_security_monitor_port_445_actions():
@@ -139,4 +162,3 @@ def test_windows_security_monitor_port_445_actions():
             text=True,
             timeout=30
         )
-

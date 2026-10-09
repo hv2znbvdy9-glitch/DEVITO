@@ -171,6 +171,7 @@ function Get-Port445State {
 
     return [pscustomobject]@{
         Timestamp = (Get-Date).ToUniversalTime().ToString('o')
+        Hostname = $env:COMPUTERNAME
         IsAdministrator = $script:IsAdministrator
         Listeners = $connections
         ServiceStatus = $serviceStatus
@@ -314,19 +315,27 @@ function Verify-LedgerChain {
     }
 
     $expectedPrevHash = '0000000000000000000000000000000000000000000000000000000000000000'
-    for ($i = 0; $index = $i; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i]
+    $blockCount = 0
+    foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
 
-        $block = $line | ConvertFrom-Json
+        try {
+            $block = $line | ConvertFrom-Json
+        } catch {
+            return [pscustomobject]@{
+                Valid = $false
+                Message = "Malformed JSON at ledger line $($blockCount + 1)."
+                TotalBlocks = $blockCount
+            }
+        }
         
         # Verify index sequence
-        $expectedIndex = $i + 1
+        $expectedIndex = $blockCount + 1
         if ($block.Index -ne $expectedIndex) {
             return [pscustomobject]@{
                 Valid = $false
                 Message = "Block index mismatch at line $expectedIndex. Expected $expectedIndex, got $($block.Index)."
-                TotalBlocks = $i
+                TotalBlocks = $blockCount
             }
         }
 
@@ -335,7 +344,7 @@ function Verify-LedgerChain {
             return [pscustomobject]@{
                 Valid = $false
                 Message = "Cryptographic linkage broken at Block $expectedIndex. PreviousHash does not match."
-                TotalBlocks = $i
+                TotalBlocks = $blockCount
             }
         }
 
@@ -349,17 +358,18 @@ function Verify-LedgerChain {
             return [pscustomobject]@{
                 Valid = $false
                 Message = "Block $expectedIndex contents modified! Computed hash $computedHash does not match stored hash $($block.Hash)."
-                TotalBlocks = $i
+                TotalBlocks = $blockCount
             }
         }
 
         $expectedPrevHash = $block.Hash
+        $blockCount++
     }
 
     return [pscustomobject]@{
         Valid = $true
         Message = 'All cryptographic signatures and block linkage verified successfully.'
-        TotalBlocks = $lines.Count
+        TotalBlocks = $blockCount
     }
 }
 
