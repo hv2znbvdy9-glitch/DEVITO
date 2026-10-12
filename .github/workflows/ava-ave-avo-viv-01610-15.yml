@@ -1,0 +1,60 @@
+name: AVA AVE AVO VIV 01610-15 — Lindblad Qubit Check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'experiments/ava_ave_avo_viv_01610_15.py'
+      - 'experiments/__init__.py'
+      - 'tests/test_ava_ave_avo_viv_01610_15.py'
+      - 'README_AVA_AVE_AVO_VIV_01610_15.md'
+      - '.github/workflows/ava-ave-avo-viv-01610-15.yml'
+  pull_request:
+    paths:
+      - 'experiments/ava_ave_avo_viv_01610_15.py'
+      - 'experiments/__init__.py'
+      - 'tests/test_ava_ave_avo_viv_01610_15.py'
+      - 'README_AVA_AVE_AVO_VIV_01610_15.md'
+      - '.github/workflows/ava-ave-avo-viv-01610-15.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ava-ave-avo-viv-01610-15-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lindblad-qubit-check:
+    name: Focused Lindblad model tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12']
+    steps:
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run focused unit tests
+        run: python -m unittest discover -s tests -p 'test_ava_ave_avo_viv_01610_15.py' -v
+      - name: Run numerical smoke test
+        run: |
+          python experiments/ava_ave_avo_viv_01610_15.py > lindblad-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('lindblad-result.json').read_text(encoding='utf-8'))
+          diagnostics = result['diagnostics']
+          assert abs(diagnostics['trace_real'] - 1.0) < 1e-8
+          assert abs(diagnostics['trace_imag']) < 1e-8
+          assert diagnostics['hermiticity_error'] < 1e-8
+          assert diagnostics['is_density_matrix_within_1e-8'] is True
+          print(json.dumps(diagnostics, indent=2, sort_keys=True))
+          PY
