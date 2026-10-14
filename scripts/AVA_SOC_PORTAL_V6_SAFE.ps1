@@ -288,21 +288,70 @@ function Get-Snapshot {
         @([pscustomobject]@{ Error = $_.Exception.Message })
     }
 
+    # Collect each section before building the snapshot. Keep try/catch
+    # statements outside the hashtable to ensure valid PowerShell syntax.
+    $defender = try {
+        Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled,AntivirusEnabled,AntivirusSignatureLastUpdated
+    } catch {
+        [pscustomobject]@{ Error = $_.Exception.Message }
+    }
+    $firewall = try {
+        Get-NetFirewallProfile | Select-Object Name,Enabled,DefaultInboundAction,DefaultOutboundAction
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+    $adapters = try {
+        Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,MacAddress,LinkSpeed
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+    $neighbors = try {
+        Get-NetNeighbor -AddressFamily IPv4 |
+            Where-Object { $_.State -ne "Unreachable" } |
+            Select-Object InterfaceAlias,IPAddress,LinkLayerAddress,State
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+    $wlan = try {
+        Get-WlanNetworksSafe
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+    $processes = try {
+        Get-CimInstance Win32_Process |
+            Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+    $services = try {
+        Get-CimInstance Win32_Service |
+            Where-Object State -eq "Running" |
+            Select-Object Name,DisplayName,State,StartMode,StartName
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+    $tasks = try {
+        Get-ScheduledTask |
+            Where-Object { $_.TaskPath -notlike "\Microsoft*" } |
+            Select-Object TaskName,TaskPath,State
+    } catch {
+        @([pscustomobject]@{ Error = $_.Exception.Message })
+    }
+
     [ordered]@{
         time        = (Get-Date).ToString("o")
         computer    = $env:COMPUTERNAME
         user        = $env:USERNAME
         mode        = "LOCAL_DEFENSIVE_READ_ONLY"
-
-        defender    = try { Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled,AntivirusEnabled,AntivirusSignatureLastUpdated } catch { [pscustomobject]@{ Error=$_.Exception.Message } }
-        firewall    = try { Get-NetFirewallProfile | Select-Object Name,Enabled,DefaultInboundAction,DefaultOutboundAction } catch { @([pscustomobject]@{ Error=$_.Exception.Message }) }
-        adapters    = try { Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,MacAddress,LinkSpeed } catch { @([pscustomobject]@{ Error=$_.Exception.Message }) }
-        neighbors   = try { Get-NetNeighbor -AddressFamily IPv4 | Where-Object { $_.State -ne "Unreachable" } | Select-Object InterfaceAlias,IPAddress,LinkLayerAddress,State } catch { @([pscustomobject]@{ Error=$_.Exception.Message }) }
-        wlan        = Get-WlanNetworksSafe
-        processes   = try { Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine } catch { @([pscustomobject]@{ Error=$_.Exception.Message }) }
+        defender    = $defender
+        firewall    = $firewall
+        adapters    = $adapters
+        neighbors   = $neighbors
+        wlan        = $wlan
+        processes   = $processes
         connections = $connections
-        services    = try { Get-CimInstance Win32_Service | Where-Object State -eq "Running" | Select-Object Name,DisplayName,State,StartMode,StartName } catch { @([pscustomobject]@{ Error=$_.Exception.Message }) }
-        tasks       = try { Get-ScheduledTask | Where-Object { $_.TaskPath -notlike "\Microsoft*" } | Select-Object TaskName,TaskPath,State } catch { @([pscustomobject]@{ Error=$_.Exception.Message }) }
+        services    = $services
+        tasks       = $tasks
     }
 }
 
