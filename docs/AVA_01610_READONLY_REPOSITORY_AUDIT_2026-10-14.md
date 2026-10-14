@@ -274,3 +274,28 @@ Dieser Nachtrag korrigiert den obenstehenden Zwischenstand nach erneuter Live-Ab
 - Keine Behauptung, alle Repositories oder alle Workflows seien gestartet worden. Der Status von `AVA-007` erfordert eine gezielte Untersuchung des in-progress-Laufs und seiner Logs, bevor ein Retry erwogen wird.
 
 Leitlinie: **Evidenz vor Aktion. Keine erfundenen Runs. Keine Umdeklaration.**
+
+
+## Korrektur / Live-Nachprüfung am 2026-10-14 (UTC, GitHub API)
+
+Diese Nachprüfung ersetzt die zuvor für `AVA-007` angegebene Statusaussage `in_progress`: der Run ist inzwischen **completed / failure**, Attempt 40. Frühere Abschnitte bleiben als zeitlich ältere Momentaufnahmen lesbar.
+
+### Sichtbare Repositories und jüngste Workflow-Runs
+
+Die GitHub-Verbindung listet unter `hv2znbvdy9-glitch` fünf Repositories: `AVA`, `AVA-007`, `DEVITO`, `Danny`, `DE.VI.TO`. Pro Repository wurden die fünf neuesten Actions-Runs read-only abgerufen.
+
+- **AVA** — API meldet 251 Runs insgesamt. Die fünf neuesten gelisteten Runs sind `Running Copilot cloud agent`, jeweils `completed/success`; diese Agent-Läufe sind kein Beleg, dass die normalen AVA-Workflows oder lokalen Skripte vollständig getestet wurden. Beispiel: [Run 38578346880](https://github.com/hv2znbvdy9-glitch/AVA/actions/runs/38578346880), Commit `5783f0600e2d2450f47fddf0cf7c337c5bc4b87b`.
+- **AVA-007** — API meldet 57 Runs insgesamt. [Run 37056290532](https://github.com/hv2znbvdy9-glitch/AVA-007/actions/runs/37056290532) ist `completed/failure`, Attempt 40, Commit `6d293b38d1aaea9924b3bc8326f85388f362747e`; zuletzt aktualisiert am 2026-10-14 14:26 UTC. In den Job-Details schlagen mehrere Ubuntu/Linux-Matrix-Jobs im Schritt `./scripts/ci.sh` fehl; dort wurden 1.592 Tests gezählt: 1.581 bestanden, 3 fehlgeschlagen, 8 übersprungen. Windows- und macOS-Matrix-Jobs, die im geprüften Lauf angezeigt wurden, waren erfolgreich; auch der TypeScript-Kompatibilitätstest war erfolgreich. Das Gesamtresultat bleibt wegen der Linux-Fehler **failure**. [Run-Details und Logs](https://github.com/hv2znbvdy9-glitch/AVA-007/actions/runs/37056290532).
+- **DEVITO** — API meldet 494 Runs insgesamt. Post-Merge-[PSScriptAnalyzer Run 38579051251](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38579051251) ist `completed/success` auf `main`, Commit `365a8244eebe93896086313b2ef1c6c8a446009f`. Der [Parse-only-Lauf 38577253033](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38577253033) war ebenfalls erfolgreich und führte das geprüfte PowerShell-Portal-Skript nicht aus.
+- **Danny** — API meldet 16 Runs insgesamt. Die fünf neuesten angezeigten Läufe sind Copilot-Agent-Läufe; vier sind `success`, einer ist `failure` ([Fehlerlauf 38083813956](https://github.com/hv2znbvdy9-glitch/Danny/actions/runs/38083813956)). Diese Ergebnisse sind kein vollständiger Repository-Test.
+- **DE.VI.TO** — API meldet `total_count: 0` Workflow-Runs.
+
+### Ausführungsgrenzen und nächste sichere Schritte
+
+- Dieser Live-Sweep hat GitHub-Status, Job-Zusammenfassungen und einen fehlgeschlagenen Job-Log gelesen. Es wurden keine neuen Workflow-Dispatches oder Retries ausgelöst.
+- Die verfügbaren GitHub-Tools in dieser Sitzung stellen keinen Workflow-Dispatch bereit. Daher wurden nicht „alle Workflows gestartet“.
+- Es wurden keine Windows-Laptops aus der Ferne angesprochen; `AVA_ADMIN_CHECK.ps1` und `START_AVA_ADMIN_CHECK.cmd` wurden hier nicht ausgeführt. Die vom Nutzer angegebenen Hashes wurden nicht mit tatsächlichen lokalen Dateien verglichen.
+- **Priorität:** die drei fehlgeschlagenen Linux-Tests in AVA-007 aus den vollständigen Logs isolieren und die Ursachen im Code prüfen; erst danach einen gezielten CI-Lauf erwägen. Keine blinden Wiederholungen.
+- Vor dem Ausführen von Admin-/Startskripten zuerst tatsächlichen Dateiinhalt, SHA-256, Seiteneffekte und erlaubten Umfang prüfen. Kein Firewall-, Task-, Dienst-, AutoDefense-, Rollback- oder Punitive-Autoloop ohne separate Sicherheitsprüfung und ausdrückliche, begrenzte Freigabe.
+
+Leitlinie: **Evidenz vor Aktion. Keine erfundenen Runs. Keine Umdeklaration.**
