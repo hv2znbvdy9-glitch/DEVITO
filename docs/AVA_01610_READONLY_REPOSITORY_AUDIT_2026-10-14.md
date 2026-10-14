@@ -222,3 +222,25 @@ Quelltextnachweise:
 - Skriptausführung, Retry, neuer Produkttest oder Systemänderung durch diesen Arbeitsschritt: **keine**.
 - Code-Korrekturen im Repository: **keine**.
 - Diese Ergänzung ändert ausschließlich den Audit-Bericht auf dem Audit-Branch.
+
+
+## 9. Parser-Fix und statischer CI-Nachweis (2026-10-14)
+
+Der zuvor bestätigte Parserfehler in `scripts/AVA_SOC_PORTAL_V6_SAFE.ps1` wurde auf einem separaten Fix-Branch korrigiert; `main` blieb unverändert.
+
+- **Fix-Branch:** `fix/ava-01610-15-soc-portal-v6-parser`
+- **Fix-Commit:** [`d8df6b4d753bcc628ce7e280a63a9c1fd1870708`](https://github.com/hv2znbvdy9-glitch/DEVITO/commit/d8df6b4d753bcc628ce7e280a63a9c1fd1870708)
+- **Pull Request:** [#180 — fix: repair AVA SOC Portal V6 PowerShell parser](https://github.com/hv2znbvdy9-glitch/DEVITO/pull/180) — offen, nicht gemergt.
+- **Parse-only workflow:** [Run 38577253033](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38577253033) — completed / success. Log: `[AVA][PASS] AVA_SOC_PORTAL_V6_SAFE.ps1 parsed successfully.` Der Log bestätigt ausdrücklich, dass das Zielskript nicht ausgeführt wurde.
+- **PSScriptAnalyzer:** [Run 38577130310](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38577130310) — completed / success. Es blieben Warnungen bestehen; die aktuelle Workflow-Policy lässt Warnungen zu und bricht nur bei Findings mit Schweregrad `Error` ab.
+- **Zusätzlicher Workflow:** `.github/workflows/static-parse-soc-portal-v6.yml`, auf dem Fix-Branch; PowerShell-AST-Parser prüft die Syntax der Zieldatei, ohne deren Inhalt auszuführen.
+
+### Ergebnisgrenze
+
+- Der gezielte Parserfehler ist auf dem Fix-Branch durch den erfolgreichen statischen Parserlauf behoben.
+- PSScriptAnalyzer hat keine Error-severity-Findings gemeldet; Warnungen bestehen fort und sind nicht automatisch behoben.
+- Keine lokale Windows-Ausführung, keine Firewall-Regeländerung, keine Task-/Service-Änderung, kein Autodefense-/Rollback-Lauf.
+- Keine Änderung oder Zusammenführung in `main`; PR #180 bleibt offen.
+- Andere Repository-Workflows wurden nicht pauschal gestartet. Die vorhandenen Werkzeuge ermöglichen hier das Auslesen und das durch Push ausgelöste CI, aber keinen direkten `workflow_dispatch`; Ausführung potenziell zustandsändernder Workflows wird nicht durch „blind ausführen“ ersetzt.
+
+Leitlinie bleibt: **BEOBACHTEN → EVIDENZ → PLANEN → TESTEN → NACHWEIS**.
