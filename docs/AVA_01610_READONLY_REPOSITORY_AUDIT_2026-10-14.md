@@ -217,7 +217,7 @@ Quelltextnachweise:
 - Ausgewählte kritische Python-/PowerShell-Dateien und Workflow-Definitionen: **gelesen und analysiert**.
 - Konkrete Fehlerursache des Safe-Audit-Laufs: **Parserfehler belegt; Datei im aktuellen main weiterhin betroffen**.
 - Ursache des früheren PSScriptAnalyzer-Laufs: **Warnungen wurden fatal behandelt; aktuelle Workflow-Definition failt nur bei Error-Schweregrad**.
-- Neuro-Tangle-Lauf: **Testassertionen protokollieren Erfolg, Job endet mit Exit-Code 1; native `$LASTEXITCODE)-Hypothese noch nicht durch eine direkte Meldung bewiesen**.
+- Neuro-Tangle-Lauf: **Testassertionen protokollieren Erfolg, Job endet mit Exit-Code 1; native `$LASTEXITCODE`-Hypothese noch nicht durch eine direkte Meldung bewiesen**.
 - AVA 01610-15 Lindblad-Workflow: **beide Matrix-Jobs und je sechs fokussierte Tests erfolgreich; Diagnosewerte dokumentiert**.
 - Skriptausführung, Retry, neuer Produkttest oder Systemänderung durch diesen Arbeitsschritt: **keine**.
 - Code-Korrekturen im Repository: **keine**.
