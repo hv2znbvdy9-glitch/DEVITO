@@ -1,0 +1,134 @@
+# AVA 01610-1 — DEVITO Read-only Repository Audit
+
+- **Prüfdatum:** 2026-10-14
+- **Repository:** `hv2znbvdy9-glitch/DEVITO`
+- **Referenz:** `main`
+- **Referenz-Commit:** `6c86dc83122952c45375adb20a7c69162044a879`
+- **Prüfmodus:** GitHub-Lesezugriff, Inventar und statische Text-/Risikomusterprüfung
+- **Änderungen an Anwendungscode:** keine
+- **Skriptausführung / lokale Systemänderungen:** keine
+- **Workflow-Dispatch / Retry:** keiner durch diesen Audit
+
+## 1. Ergebnis und Abgrenzung
+
+Der aktuelle GitHub-Dateibaum wurde rekursiv gelesen. Alle 42 Python- und 30 PowerShell-Dateien wurden abgerufen und einem statischen Suchlauf auf sicherheitsrelevante Muster unterzogen. Zusätzlich wurden ausgewählte kritische Dateien und Workflows vertieft gelesen.
+
+Dies ist ein **Inventar- und statischer Zwischen-Audit**, noch keine Bestätigung eines vollständigen manuellen Zeile-für-Zeile-Codeaudits und kein Laufzeitnachweis. Die Tests wurden durch diesen Audit nicht gestartet. Ein erfolgreiches GitHub-Workflow-Ergebnis belegt nur die in diesem Workflow tatsächlich ausgeführten Schritte.
+
+## 2. Aktueller Bestand
+
+| Bereich | Aktueller Befund |
+|---|---:|
+| Git-Tree-Einträge einschließlich Verzeichnissen | 139 |
+| Dateien/Blobs | 114 |
+| Python-Dateien | 42 |
+| PowerShell-Dateien | 30 |
+| Workflow-YAML-Dateien | 8 |
+| AVA-benannte Pfade | 73 |
+| Tests unter `tests/` | 12 Python-Dateien einschließlich Unterverzeichnissen |
+
+Die Werte ersetzen die ältere Inventarangabe „109 Dateien / 39 Python-Dateien“ für den geprüften `main`-Stand. Die Kategorien überlappen und sind nicht additiv.
+
+Die angegebene AVA-Paketstruktur ist im Repository vorhanden, unter anderem `ava/cli`, `ava/clients`, `ava/config`, `ava/core`, `ava/db`, `ava/lsp`, `ava/monitoring`, `ava/utils`, `ava/neuron_models.py`, `ava/policy.py` und `ava/policy_cli.py`.
+
+Die aufgelisteten PowerShell-Programme befinden sich überwiegend unter `scripts/`, nicht im Repository-Stamm. Der Sensor liegt unter `scripts/AVA_WLAN_TANGLE_SENSOR.ps1`. Verweise auf die entsprechenden Stamm-Pfade müssen korrigiert oder ausdrücklich als lokale, nicht eingecheckte Dateien gekennzeichnet werden.
+
+## 3. Wesentliche technische Befunde
+
+### 3.1 Python-Ausführungsengine — hohe Priorität
+
+Datei: `ava/core/engine.py`
+
+Die Engine startet Befehle mit `subprocess.run(..., shell=True)` und asynchron mit `asyncio.create_subprocess_shell(...)`. Eine einfache Befehlsvalidierung ersetzt keine belastbare Vertrauensgrenze. Wenn ein Aufgabenbefehl aus nicht vertrauenswürdigen Daten stammen kann, entsteht ein Risiko durch Shell-Injection und unbeabsichtigte Prozessausführung.
+
+**Empfehlungen**
+1. Herkunft und Berechtigungsmodell für `Task.command` dokumentieren.
+2. Wenn möglich feste Programme mit Argumentlisten verwenden (`shell=False`), statt beliebige Shell-Strings anzunehmen.
+3. Zulässige Befehle über eine explizite Allowlist und strukturierte Parameter definieren.
+4. Tests für Shell-Metazeichen, ungültige Befehle, Timeouts und Fehlerpfade ergänzen.
+5. Hintergrundtask-Zustände und Fehlerausgänge getrennt testen.
+
+### 3.2 WLAN-Tangle-Sensor — nicht strikt read-only
+
+Datei: `scripts/AVA_WLAN_TANGLE_SENSOR.ps1`
+
+Der Sensor liest sichtbare WLAN-Informationen über `netsh wlan show networks mode=bssid`, lokale Adapter/IP-Konfiguration und IPv4-Nachbarn. Gleichzeitig schreibt er Dateien in `C:\Windows\SecurityGuardian`: Ereignis-JSONL, Tangle-JSONL, Tangle-State, HTML-Portal und Policy-JSON.
+
+Wichtig: `Ensure-Dirs` wird bereits vor der Auswertung von `-RemoveTask` und `-InstallTask` aufgerufen. Der Aufruf kann also Verzeichnisse erstellen und `ava_admin_policy.json` überschreiben, auch wenn anschließend nur ein Task entfernt werden soll. `-InstallTask` registriert eine geplante Aufgabe als `SYSTEM`; `-RemoveTask` entfernt sie. `-Loop` läuft dauerhaft.
+
+**Empfehlungen**
+1. Modusgrenzen explizit machen: `-RunOnce` = lokale Erfassung mit gekennzeichneten Artefakt-Schreibvorgängen; `-InstallTask` / `-RemoveTask` = privilegierte Systemänderungen.
+2. Verzeichnisse und Policy-Datei erst in dem Modus vorbereiten, der diese Schreibvorgänge benötigt.
+3. Policy-Datei nicht bei jedem Start blind überschreiben; vorhandene Datei validieren und Änderungen gesondert protokollieren.
+4. Exit-Code von `netsh` prüfen und Fehler von „keine Netzwerke gefunden“ unterscheiden.
+5. Hash-Kette gegen Manipulation testen: ungültiger State, fehlender vorheriger Hash, beschädigte JSONL-Zeile, konkurrierende Schreibvorgänge und Zeitzonen-/Zeitformat.
+6. SSIDs, BSSIDs, IP-Adressen und Nutzernamen als potenziell sensible lokale Telemetrie klassifizieren.
+
+### 3.3 PowerShell-Skripte: Fähigkeiten vor Ausführung klassifizieren
+
+Der Musterlauf findet in mehreren Skripten administrative Anforderungen, Datei-/State-Schreibvorgänge und Firewall-/Task-Funktionen. Beispiele sind `AVA-SecurityGuardian.ps1`, `AVA_Immune_System_v2.ps1`, `AVA_v4_Portal.ps1`, `AVA_SOC_CORE.ps1`, `AVA_CORE_STACK_v1.ps1` und Portal-/Scan-Varianten.
+
+Die bloße Anwesenheit eines Befehls ist noch kein Beweis, dass er in jedem Lauf ausgeführt wird. Sie reicht jedoch aus, um ein Skript nicht ohne weitere Analyse pauschal als „read-only“ einzustufen. Insbesondere `AutoBlock`, Firewall-Regeländerungen, Task-Registrierung, Task-Entfernung und Rollback müssen als getrennte, ausdrücklich autorisierte Funktionen behandelt werden.
+
+Die Dateien `scripts/AVA_SOC_V7_SAFE_READONLY.ps1` und `scripts/AVA_SOC_CORE_CLEANED.ps1` sind kleinere Kandidaten für eng begrenzte statische Prüfungen. Auch die Bezeichnung „READONLY“ ist allein kein Sicherheitsnachweis.
+
+### 3.4 Statisches Audit-Werkzeug — nützlich, aber nicht vollständig
+
+Datei: `tools/Invoke-AvaSafeAuditStatic.ps1`
+
+Das Werkzeug erzeugt Datei-Inventare mit SHA-256, Parsergebnisse für PowerShell-Dateien und einen Vergleich einer bereinigten Skriptvariante mit Listen verbotener Befehle/Textmuster. Es schreibt erwartungsgemäß Audit-Artefakte in ein angegebenes Ausgabeverzeichnis.
+
+**Grenzen:** Musterlisten können Aliase, dynamisch konstruierte Befehle, indirekte Aufrufe und kontextabhängige Laufzeitwirkungen übersehen. Ein erfolgreicher statischer Bericht ist kein Ersatz für Review, isolierte Tests oder einen nachgewiesenen Windows-Testlauf.
+
+## 4. Tests und GitHub Actions
+
+Vorhandene Testdateien umfassen unter anderem:
+
+- `tests/test_engine.py`
+- `tests/test_cli_start.py`
+- `tests/test_config.py`
+- `tests/test_isc_client.py`
+- `tests/test_lsp.py`
+- `tests/test_real_state.py`
+- `tests/test_utils.py`
+- `tests/test_ava_policy_acceptance.py`
+- `tests/test_action_policy_acceptance.py`
+- `tests/test_ava_ave_avo_viv_01610_15.py`
+- `tests/test_run_workflow_command.py`
+- `tests/performance/test_performance.py`
+
+Es sind acht Workflow-YAML-Dateien vorhanden: `ava-3-14-defensive-run.yml`, `ava-ave-avo-viv-01610-15.yml`, `ava-policy.yml`, `ava-safe-audit-one-script.yml`, `psscriptanalyzer.yml`, `run-all-safe.yml`, `safe-audit-verified-pr.yml` und `safe-audit.yml`.
+
+Die aktuellen Workflow-Definitionen und historischen Runs dürfen nicht miteinander verwechselt werden. Ein `workflow_dispatch`-Trigger allein startet keinen Lauf. Für eine vollständige CI-Matrix müssen je Workflow Trigger, Pfadfilter, Berechtigungen, Runner, tatsächlich ausgeführte Schritte, Artefakte und der Run-Status zum geprüften Commit dokumentiert werden.
+
+### Live abgefragte Workflow-Belege
+
+- `AVA AVE AVO VIV 01610-15 — Lindblad Qubit Check`: **completed / success**, Run [38458673749](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38458673749), Commit `6c86dc83122952c45375adb20a7c69162044a879`.
+- `Run AVA Safe Audit`: **completed / success**, Run [37975543865](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/37975543865), Commit `cc92be61342fd800ff4601dfec0f5a916c268049`.
+- `PSScriptAnalyzer`: letzter in der abgefragten Ergebnisliste sichtbarer Lauf **completed / success**, Run [37044562043](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/37044562043), Commit `eb344036daeb736974f065eab845baf2c406a52c`.
+- Ein älterer Lauf mit dem Namen `AVA Safe Audit` ist fehlgeschlagen: [Run 37044796548](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/37044796548). Der genaue Fehler ist in diesem Inventarbericht nicht diagnostiziert.
+- Zum Zeitpunkt der Abfrage lief außerdem ein Copilot-Agent-Run [38571616620](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38571616620). Das ist kein AVA-Produkttest.
+
+**Wichtig:** Keiner dieser Läufe wurde für diesen Audit erneut gestartet. Die Links zeigen vorhandene GitHub-Belege; sie belegen nicht automatisch den aktuellen Status aller acht Workflows.
+
+## 5. Priorisierter Arbeitsplan
+
+1. **P0 — Ausführungsgrenze:** Shell-Ausführung in `ava/core/engine.py` absichern und durch Negativtests abdecken.
+2. **P0 — Systemänderungen:** Alle PowerShell-Skripte nach Fähigkeiten klassifizieren: reine Beobachtung, lokale Artefakt-Schreibvorgänge, Task-/Service-/Firewall-Änderungen, Prozessstarts.
+3. **P1 — WLAN-Sensor:** Policy-Überschreiben beim Start vermeiden; Task-Verwaltung vom Sensorzyklus trennen; Parser- und Hashketten-Tests ergänzen.
+4. **P1 — Tests:** Bestehende Tests und Abhängigkeiten auflisten und in einer kontrollierten CI-Ausführung nachweisen. Erst nach expliziter Freigabe einen neuen Lauf starten.
+5. **P1 — Workflows:** Trigger-/Pfadfilter und Berechtigungen gegen den echten Dateibaum prüfen; veraltete Pfade und uneindeutige „read-only“-Beschreibungen korrigieren.
+6. **P2 — Dokumentation:** Für jede Komponente Datei-SHA, Schnittstellen, Eingaben/Ausgaben, Schreibwirkungen, Risiken, Tests und letzten belegten Run vermerken.
+7. **P2 — Evidenzintegrität:** Audit-Berichte append-only versionieren; ursprüngliche Artefakte nicht überschreiben; Zeitstempel, Commit-SHA und Prüfsummen miteinander verknüpfen.
+
+## 6. Evidenzgrenze und nächster Status
+
+- Repository-Inventar und Text-/Risikomusterprüfung: **durchgeführt**.
+- Vertiefte Prüfung ausgewählter kritischer Dateien: **durchgeführt**.
+- Vollständiger manueller Zeile-für-Zeile-Review aller Dateien: **offen**.
+- Tests durch diesen Audit: **nicht ausgeführt**.
+- Windows-Laufzeitprüfung des WLAN-Sensors: **nicht ausgeführt**.
+- Neue GitHub-Workflows/Retry: **nicht gestartet**.
+- Änderungen an Anwendungscode oder Systemkonfiguration: **keine**.
+
+Leitlinie: **BEOBACHTEN → EVIDENZ → PLANEN → TESTEN → NACHWEIS**. Keine erfundenen Runs; kein Laufzeitstatus aus bloßem Quelltext ableiten.
