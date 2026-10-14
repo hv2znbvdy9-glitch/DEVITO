@@ -244,3 +244,33 @@ Der zuvor bestätigte Parserfehler in `scripts/AVA_SOC_PORTAL_V6_SAFE.ps1` wurde
 - Andere Repository-Workflows wurden nicht pauschal gestartet. Die vorhandenen Werkzeuge ermöglichen hier das Auslesen und das durch Push ausgelöste CI, aber keinen direkten `workflow_dispatch`; Ausführung potenziell zustandsändernder Workflows wird nicht durch „blind ausführen“ ersetzt.
 
 Leitlinie bleibt: **BEOBACHTEN → EVIDENZ → PLANEN → TESTEN → NACHWEIS**.
+
+
+## Nachtrag 2026-10-14 — Merge- und Repository-Run-Status
+
+Dieser Nachtrag korrigiert den obenstehenden Zwischenstand nach erneuter Live-Abfrage. Ältere Aussagen „PR offen/nicht gemergt“ sind durch die folgenden neueren Daten ersetzt.
+
+### Parserkorrektur
+
+- **PR #180 ist gemergt**: https://github.com/hv2znbvdy9-glitch/DEVITO/pull/180
+- **Merge-Commit / aktueller Main-Head zum Prüfzeitpunkt:** `365a8244eebe93896086313b2ef1c6c8a446009f`.
+- Die Datei `scripts/AVA_SOC_PORTAL_V6_SAFE.ps1` auf `main` enthält die Korrektur; der gelesene Blob-SHA ist `14ac458e104e47dfbaf32d6cc4de5eff5fc66d55`.
+- **Post-merge PSScriptAnalyzer:** Run [38579051251](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38579051251), completed / success.
+- **Parse-only:** Run [38577253033](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38577253033), completed / success. Der Test parst die Datei; er führt das SOC-Portal-Skript nicht aus.
+
+### Repository-Run-Sweep (jeweils neueste 5 Runs abgefragt)
+
+- `AVA`: neueste angezeigte Runs sind „Running Copilot cloud agent“ mit Status completed/success; das sind Agent-Läufe und kein Nachweis, dass sämtliche AVA-Workflows oder lokalen Skripte ausgeführt wurden.
+- `AVA-007`: Run [37056290532](https://github.com/hv2znbvdy9-glitch/AVA-007/actions/runs/37056290532) `Install and test AVA`, Branch `main`, Commit `6d293b38d1aaea9924b3bc8326f85388f362747e`, ist laut API weiterhin `in_progress` seit 2026-10-02; weitere jüngere gelistete Runs enthalten `failure` bzw. `cancelled`. Das ist als möglicherweise festhängender Lauf zu untersuchen, nicht als Erfolg umzudeuten.
+- `DEVITO`: Post-merge PSScriptAnalyzer success wie oben; Parserprüfung zuvor ebenfalls success.
+- `Danny`: die neuesten gelisteten Runs sind überwiegend „Running Copilot cloud agent“; ein solcher Lauf ist am 2026-10-10 als failure und ein weiterer als success verzeichnet. Diese Agent-Läufe sind nicht gleichbedeutend mit einem vollständigen Repository-Test.
+- `DE.VI.TO`: API meldet `total_count: 0` Workflow-Runs.
+
+### Sicherheits- und Ausführungsgrenzen
+
+- Dies war ein **read-only Statusabruf**. Es wurden durch diesen Sweep keine neuen Workflow-Dispatches ausgelöst.
+- `AVA_ADMIN_CHECK.ps1` und `START_AVA_ADMIN_CHECK.cmd` wurden nicht auf einem Windows-Laptop ausgeführt; die vom Nutzer angegebenen Hashes wurden nicht anhand tatsächlicher lokaler Dateien verifiziert.
+- Keine Firewall-Regeln entfernt/geändert, keine Scheduled Tasks oder Services verändert, kein AutoDefense-/Rollback-/Punitive-Autoloop ausgeführt.
+- Keine Behauptung, alle Repositories oder alle Workflows seien gestartet worden. Der Status von `AVA-007` erfordert eine gezielte Untersuchung des in-progress-Laufs und seiner Logs, bevor ein Retry erwogen wird.
+
+Leitlinie: **Evidenz vor Aktion. Keine erfundenen Runs. Keine Umdeklaration.**
