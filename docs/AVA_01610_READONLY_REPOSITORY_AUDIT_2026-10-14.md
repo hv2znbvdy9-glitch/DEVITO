@@ -132,3 +132,93 @@ Die aktuellen Workflow-Definitionen und historischen Runs dürfen nicht miteinan
 - Änderungen an Anwendungscode oder Systemkonfiguration: **keine**.
 
 Leitlinie: **BEOBACHTEN → EVIDENZ → PLANEN → TESTEN → NACHWEIS**. Keine erfundenen Runs; kein Laufzeitstatus aus bloßem Quelltext ableiten.
+
+
+## 7. Ergänzung nach Auswertung konkreter Workflow-Logs (2026-10-14)
+
+Diese Ergänzung basiert auf den vorhandenen Job-Logs und auf den dazugehörigen Quelltexten. Es wurden keine Workflow-Läufe erneut gestartet.
+
+### 7.1 AVA Safe Audit: Parserfehler im aktuellen main bestätigt
+
+- **Run:** [37044796548](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/37044796548), Attempt 28
+- **Geprüfter Commit:** `cc92be61342fd800ff4601dfec0f5a916c268049`
+- **Fehlgeschlagener Job:** `Inventory, parse, sanitize, isolated test`
+- **Abbruchschritt:** `Parse every PowerShell file statically`
+- **Betroffene Datei:** `scripts/AVA_SOC_PORTAL_V6_SAFE.ps1`
+- **Datei-Blob-SHA im aktuell gelesenen main:** `87a782efcd0e5c7d26abe22d7e9c325755888eb8`
+
+Die Logs melden:
+- Zeile 291: fehlende schließende `}` in Statement-Block oder Typdefinition.
+- Zeile 298: unerwartetes Token `firewall`.
+- Zeile 307: unerwartetes Token `}`.
+
+Der untersuchte Quelltext enthält innerhalb eines geordneten Hashtable-Literals direkte Statement-Ausdrücke wie `defender = try { ... } catch { ... }` und `firewall = try { ... } catch { ... }`. Diese Konstruktion ist die belegte Fehlerstelle, die der Parser beanstandet. Weil der Blob-SHA im aktuellen `main` mit dem aus der fehlgeschlagenen Revision gelesenen Blob übereinstimmt, ist dieser Befund **nicht bloß historisch: er besteht im derzeit geprüften main-Dateistand weiter**.
+
+**Korrekturvorschlag, nicht ausgeführt:** Collector-Ergebnisse zunächst in Variablen mit separaten `try/catch`-Blöcken erfassen und diese Variablen danach dem Hashtable zuweisen. Anschließend zunächst nur den PowerShell-AST-Parser über diese einzelne Datei laufen lassen; erst danach die vollständige statische Audit-Workflow-Prüfung erneut autorisieren.
+
+### 7.2 PSScriptAnalyzer: frühere Warnungs-Fail-Policy inzwischen geändert
+
+- **Historischer fehlgeschlagener Run:** [35533968161](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/35533968161), Attempt 21
+- **Geprüfter Commit:** `62f25d7df4e3696f8c13bede2abee5c348dc0160`
+
+Der historische Workflow warf einen Fehler, sobald `$results` irgendeinen Befund enthielt. Dazu zählten auch Warnungen, etwa:
+- `PSAvoidUsingCmdletAliases` für den Alias `H`
+- `PSUseApprovedVerbs` bei Funktionsnamen
+- `PSUseDeclaredVarsMoreThanAssignments` bei ungenutzten Variablen
+- `PSUseShouldProcessForStateChangingFunctions` bei Funktionen, deren Namen auf Zustandsänderungen hinweisen.
+
+Das ist als **Lint-/Best-Practices-Fehler** dokumentiert, nicht als Syntaxfehler.
+
+Der auf `main` gelesene Workflow wurde in dieser Hinsicht angepasst: Er markiert Warnungen und Fehler getrennt und beendet den Job nur dann mit Fehler, wenn mindestens ein Befund der Severity `Error` vorliegt. Warnungen allein werden ausdrücklich zugelassen. Ein bestehender erfolgreicher Lauf ist [37044562043](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/37044562043). Damit ist die frühere „jede Warnung ist fatal“-Policy im aktuellen Workflow-Quelltext korrigiert; das bedeutet nicht, dass sämtliche Warnungen beseitigt wurden.
+
+### 7.3 AVA Neuro Tangle Safe Check: wahrscheinlich veralteter nativer Exit-Code
+
+- **Run:** [34977308611](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/34977308611), Attempt 26
+- **Commit:** `840359c35bc3b7bc05ca8f1df3b02703fe04ad6f`
+- **Beobachtung aus Logs:** AST-/Negativtests erfolgreich; der Zwei-Zyklen-Nachweis gibt `AVA 01610 1 two-cycle evidence verification passed` aus, der Schritt endet dennoch mit Exit-Code 1.
+
+Der damals geprüfte Sensor rief `netsh.exe wlan show networks mode=bssid` auf und prüfte anschließend `$LASTEXITCODE`. Bei einem Fehler wurde eine Exception ausgelöst; der umgebende `Invoke-AVASafeCollect`-Block fing diese ab und konnte den Collector als nicht verfügbar protokollieren. Der Workflow verwendete den eingebauten `shell: powershell`-Modus. GitHub Actions hängt an diesen eingebauten PowerShell-Shells einen Wrapper an, der einen vorhandenen `$LASTEXITCODE` als Prozess-Exit-Code verwendet.
+
+**Wahrscheinliche, aber nicht abschließend bewiesene Ursache:** Ein nicht erfolgreicher nativer WLAN-Collector hinterließ `$LASTEXITCODE = 1`; obwohl der Sammlungsfehler intern behandelt und die Evidenzprüfung erfolgreich ausgegeben wurde, lieferte der Shell-Wrapper anschließend Exit-Code 1. Der Log enthält nicht den konkreten nativen Exit-Code im abschließenden Fehlertext, daher wird dies als Hypothese und nicht als bewiesene Ursache geführt.
+
+Referenzen:
+- [PowerShell automatische Variablen – `$LASTEXITCODE`](https://learn.microsoft.com/en-us/powershell/module/Microsoft.PowerShell.Core/about/about_automatic_variables)
+- [GitHub Actions – Exit-Codes bei eingebauten PowerShell-Shells](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#exit-codes-and-error-action-preference)
+
+**Korrekturvorschlag, nicht ausgeführt:** Den nativen Exit-Code unmittelbar nach dem Aufruf lokal speichern, ihn im Collector-Ergebnis explizit ausgeben und nach bewusst abgefangenem Collector-Ausfall den Schritt-Exitstatus kontrolliert normalisieren. Gleichzeitig sicherstellen, dass unbehandelte Fehler weiterhin zuverlässig zum Fehlerstatus führen.
+
+### 7.4 AVA · AVE · AVO · VIV 01610-15: aktueller Forschungsnachweis
+
+- **Workflow:** [AVA AVE AVO VIV 01610-15 — Lindblad Qubit Check](https://github.com/hv2znbvdy9-glitch/DEVITO/actions/runs/38458673749)
+- **Commit:** `6c86dc83122952c45375adb20a7c69162044a879`
+- **Status:** `completed / success`
+- **Matrix:** Python 3.10 und Python 3.12; beide Jobs erfolgreich.
+- **Tests je Matrix-Job:** 6 fokussierte `unittest`-Tests bestanden; anschließend numerischer Smoke-Test erfolgreich.
+
+Die Tests decken ab: stationären angeregten Zustand bei Null-Dissipation und σz-Hamiltonian, analytischen Populationsverlauf für Amplitudendämpfung, Kohärenzabnahme bei reiner Dephasierung, Spur/Hermitizität/Positivität während einer gemischten Entwicklung, Bloch-Vektor des Plus-Zustands und Zurückweisung ungültiger Parameter.
+
+Der Standardlauf verwendet laut Quellcode die feste RK4-Zeitschrittintegration mit Dauer (2.0), Δt (= 0.005), 400 Schritten, ω (=1.0), γ-relaxation (=0.7) und γ-dephasing (=0.2). Der Workflow-Log zeigt in beiden Python-Versionen:
+- `trace_real = 1.0`
+- `trace_imag = 0.0`
+- `hermiticity_error = 0.0`
+- `is_density_matrix_within_1e-8 = true`
+- `purity = 0.628426197367`
+
+**Interpretation:** Dies ist ein erfolgreicher, reproduzierbar definierter numerischer Check des implementierten Ein-Qubit-Lindblad-Modells in den beiden CI-Python-Versionen. Die Ergebnisse belegen nicht für sich allein eine neue physikalische Entdeckung, tatsächlichen Messkollaps oder physische Quantenausführung. Der Integrator ist laut Projektcode eine Approximation mit festem Zeitschritt; weitere Konvergenztests über mehrere Δt-Werte und unabhängige Referenzlösungen wären sinnvolle nächste Verifikationsschritte.
+
+Quelltextnachweise:
+- [Experiment](https://github.com/hv2znbvdy9-glitch/DEVITO/blob/main/experiments/ava_ave_avo_viv_01610_15.py)
+- [Regressionstests](https://github.com/hv2znbvdy9-glitch/DEVITO/blob/main/tests/test_ava_ave_avo_viv_01610_15.py)
+- [Workflow-Definition](https://github.com/hv2znbvdy9-glitch/DEVITO/blob/main/.github/workflows/ava-ave-avo-viv-01610-15.yml)
+
+## 8. Aktualisierter Status nach Log-Prüfung
+
+- Statische Inventur des aktuellen Dateibaums: **durchgeführt**.
+- Ausgewählte kritische Python-/PowerShell-Dateien und Workflow-Definitionen: **gelesen und analysiert**.
+- Konkrete Fehlerursache des Safe-Audit-Laufs: **Parserfehler belegt; Datei im aktuellen main weiterhin betroffen**.
+- Ursache des früheren PSScriptAnalyzer-Laufs: **Warnungen wurden fatal behandelt; aktuelle Workflow-Definition failt nur bei Error-Schweregrad**.
+- Neuro-Tangle-Lauf: **Testassertionen protokollieren Erfolg, Job endet mit Exit-Code 1; native `$LASTEXITCODE)-Hypothese noch nicht durch eine direkte Meldung bewiesen**.
+- AVA 01610-15 Lindblad-Workflow: **beide Matrix-Jobs und je sechs fokussierte Tests erfolgreich; Diagnosewerte dokumentiert**.
+- Skriptausführung, Retry, neuer Produkttest oder Systemänderung durch diesen Arbeitsschritt: **keine**.
+- Code-Korrekturen im Repository: **keine**.
+- Diese Ergänzung ändert ausschließlich den Audit-Bericht auf dem Audit-Branch.
