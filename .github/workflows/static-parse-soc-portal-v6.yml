@@ -1,0 +1,48 @@
+name: AVA Static Parse - SOC Portal V6
+
+on:
+  push:
+    branches:
+      - fix/ava-01610-15-soc-portal-v6-parser
+    paths:
+      - 'scripts/AVA_SOC_PORTAL_V6_SAFE.ps1'
+      - '.github/workflows/static-parse-soc-portal-v6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parse-only:
+    name: Parse PowerShell syntax without executing the script
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Parse target file using PowerShell AST parser
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $Target = Join-Path $PWD 'scripts/AVA_SOC_PORTAL_V6_SAFE.ps1'
+          $Tokens = $null
+          $Errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $Target,
+            [ref]$Tokens,
+            [ref]$Errors
+          ) | Out-Null
+
+          if (@($Errors).Count -gt 0) {
+            $Errors | ForEach-Object {
+              Write-Error ("{0}:{1}:{2}: {3}" -f $Target, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+            }
+            throw "Static parse failed for AVA_SOC_PORTAL_V6_SAFE.ps1."
+          }
+
+          Write-Host '[AVA][PASS] AVA_SOC_PORTAL_V6_SAFE.ps1 parsed successfully.'
+          Write-Host '[AVA][INFO] Parse-only check; the target script was not executed.'
