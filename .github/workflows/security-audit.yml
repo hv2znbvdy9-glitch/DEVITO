@@ -1,0 +1,51 @@
+name: Security Audit
+# Read-only daily audit: Bandit, Safety, secret scan, SAST (Semgrep), SCA (pip-audit).
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tools
+        run: pip install bandit safety pip-audit semgrep detect-secrets
+      - name: Bandit
+        run: bandit -r ava -f json -o bandit.json || true
+      - name: Safety (dependencies)
+        run: safety check -r requirements.txt --json > safety.json || true
+      - name: SCA (pip-audit)
+        run: pip-audit -r requirements.txt -f json -o pip-audit.json || true
+      - name: SAST (Semgrep)
+        run: semgrep --config p/python --json -o semgrep.json ava || true
+      - name: Secret scan
+        run: detect-secrets scan > secrets.json || true
+      - name: ESLint security (only if package.json exists)
+        run: |
+          if [ -f package.json ]; then
+            npm ci --ignore-scripts && npx --no-install eslint . -f json -o eslint.json || true
+          else
+            echo "No package.json; skipped" > eslint-skipped.txt
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-${{ github.run_id }}
+          path: |
+            bandit.json
+            safety.json
+            pip-audit.json
+            semgrep.json
+            secrets.json
+            eslint.json
+            eslint-skipped.txt
+          if-no-files-found: ignore
+      - name: Summary
+        if: always()
+        run: echo "Security audit reports uploaded as artifacts (audit trail)." >> "$GITHUB_STEP_SUMMARY"

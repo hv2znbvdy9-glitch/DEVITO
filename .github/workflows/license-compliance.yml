@@ -1,0 +1,46 @@
+name: License Compliance
+on:
+  schedule:
+    - cron: "5 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Report licenses
+        run: |
+          pip install -r requirements.txt pip-licenses
+          pip-licenses --format=json --with-system --output-file=licenses.json
+          pip-licenses --format=markdown > licenses.md
+      - name: Detect copyleft/proprietary conflicts (project is MIT)
+        run: |
+          python - <<'PY'
+          import json, re, sys
+          data = json.load(open("licenses.json"))
+          bad = re.compile(r"GPL|AGPL|Proprietary|Commercial|UNKNOWN", re.I)
+          ok = re.compile(r"LGPL", re.I)
+          hits = [d for d in data if bad.search(d["License"]) and not ok.search(d["License"])]
+          for d in hits:
+              print(f"REVIEW: {d['Name']} {d['Version']}: {d['License']}")
+          with open("license-conflicts.txt", "w") as f:
+              f.write("\n".join(f"{d['Name']} {d['Version']}: {d['License']}" for d in hits))
+          sys.exit(1 if hits else 0)
+          PY
+      - name: Dashboard
+        if: always()
+        run: cat licenses.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: license-report-${{ github.run_id }}
+          path: |
+            licenses.json
+            licenses.md
+            license-conflicts.txt
+          if-no-files-found: ignore
