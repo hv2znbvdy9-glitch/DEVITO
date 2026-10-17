@@ -24,3 +24,7 @@ Custom parameters are available via command-line options: duration, dt, omega, g
 ## Acceptance checks
 
 The focused tests cover trace preservation, Hermiticity, positivity for the tested trajectory, analytic amplitude-damping population, pure-dephasing coherence decay, the Bloch-vector convention, and input validation. GitHub Actions runs this focused test module on Python 3.10 and 3.12; the broader pre-existing repository suite is not treated as evidence for this isolated experiment.
+
+## AVA 01610-15 audit and execution evidence
+
+The repository-wide execution status, known workflow outcomes, explicit limitations, and next audit steps are tracked in [the dated audit report](docs/AVA_01610_15_AUDIT_EXECUTION_2026-10-17.md). Treat that report as a bounded snapshot, not as proof that every file or every workflow has passed. Laptop execution must be confirmed from evidence produced on the actual Windows machine.
