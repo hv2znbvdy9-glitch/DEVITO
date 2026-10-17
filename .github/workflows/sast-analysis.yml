@@ -1,0 +1,42 @@
+name: SAST Analysis
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - uses: github/codeql-action/analyze@v3
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tools
+        run: pip install semgrep pylint mypy
+      - name: Semgrep
+        run: semgrep --config p/python --sarif -o semgrep.sarif ava || true
+      - name: pylint
+        run: pylint ava --exit-zero
+      - name: mypy
+        run: mypy ava --ignore-missing-imports || true
+      - name: ESLint (only if configured)
+        run: |
+          if [ -f package.json ]; then npm ci --ignore-scripts && npx --no-install eslint . || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sast-${{ github.run_id }}
+          path: semgrep.sarif
+          if-no-files-found: ignore

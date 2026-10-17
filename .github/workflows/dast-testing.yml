@@ -1,0 +1,41 @@
+name: DAST Testing
+# Scans ONLY a locally started instance inside the runner; never external hosts.
+on:
+  schedule:
+    - cron: "41 5 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install app
+        run: pip install -r requirements.txt
+      - name: Start local app (if an ASGI app is available)
+        run: |
+          if python -c "import ava.api.app" 2>/dev/null; then
+            (timeout 600 python -m uvicorn ava.api.app:app --host 127.0.0.1 --port 8000 &) ; sleep 10
+            echo "TARGET=http://127.0.0.1:8000" >> "$GITHUB_ENV"
+          else
+            echo "No local web app found; DAST skipped" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: OWASP ZAP baseline against local target
+        if: env.TARGET != ''
+        run: |
+          docker run --network host --rm -v "$PWD:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "$TARGET" -r zap.html -m 5 || true
+      - name: Response time / resource check
+        if: env.TARGET != ''
+        run: curl -s -o /dev/null --max-time 10 -w "time_total=%{time_total}\n" "$TARGET/" | tee -a "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dast-${{ github.run_id }}
+          path: zap.html
+          if-no-files-found: ignore

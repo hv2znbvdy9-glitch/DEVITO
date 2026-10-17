@@ -1,0 +1,38 @@
+name: Container Security
+# Runs only when a Dockerfile exists in the repository.
+on:
+  push:
+    paths: ["**/Dockerfile*", ".github/workflows/container-security.yml"]
+  pull_request:
+    paths: ["**/Dockerfile*"]
+  schedule:
+    - cron: "11 7 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Dockerfile
+        id: df
+        run: |
+          if [ -f Dockerfile ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "No Dockerfile; skipped" >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Build image
+        if: steps.df.outputs.found == 'true'
+        run: docker build -t local/scan:${{ github.sha }} .
+      - name: Trivy image scan (vulnerabilities, base image)
+        if: steps.df.outputs.found == 'true'
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: local/scan:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Trivy config scan (Dockerfile misconfiguration)
+        if: steps.df.outputs.found == 'true'
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          scan-ref: .
