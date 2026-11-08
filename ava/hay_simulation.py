@@ -23,12 +23,11 @@ def _find_model_file(model_dir: Path, name: str) -> Path:
     return matches[0]
 
 
-def _load_mechanisms(h: Any, model_dir: Path) -> None:
-    libraries = list(model_dir.rglob("libnrnmech.so"))
-    libraries += list(model_dir.rglob("nrnmech.dll"))
-    libraries += list(model_dir.rglob("libnrnmech.dylib"))
-    if libraries:
-        h.nrn_load_dll(str(libraries[0]))
+def _load_mechanisms(model_dir: Path) -> None:
+    from neuron import load_mechanisms
+
+    if not load_mechanisms(str(model_dir)):
+        raise RuntimeError(f"Compile the Hay mechanisms in {model_dir} with nrnivmodl mod")
 
 
 def _load_hay_cell(h: Any, model_dir: Path) -> Any:
@@ -37,7 +36,7 @@ def _load_hay_cell(h: Any, model_dir: Path) -> Any:
     biophysics = _find_model_file(model_dir, "L5PCbiophys3.hoc")
     morphology = _find_model_file(model_dir, "cell1.asc")
 
-    _load_mechanisms(h, model_dir)
+    _load_mechanisms(model_dir)
     h.load_file("stdrun.hoc")
     h.load_file("import3d.hoc")
     h.load_file(str(biophysics))
@@ -112,6 +111,8 @@ def run_hay_simulation(
         soma_voltage.record(soma(0.5)._ref_v)
         apical_voltage.record(apical(0.5)._ref_v)
 
+        h.CVode().active(0)
+        h.celsius = 34.0
         h.dt = dt_ms
         h.finitialize(-80.0)
         h.continuerun(duration_ms)
