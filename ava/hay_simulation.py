@@ -10,7 +10,7 @@ import argparse
 import csv
 import os
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Union
 
 
 MODEL_ID = "139653"
@@ -60,8 +60,8 @@ def _values(vector: Any) -> Iterable[float]:
 
 
 def run_hay_simulation(
-    model_dir: str | os.PathLike[str],
-    output: str | os.PathLike[str],
+    model_dir: Union[str, os.PathLike],
+    output: Union[str, os.PathLike],
     *,
     duration_ms: float = 100.0,
     dt_ms: float = 0.025,
