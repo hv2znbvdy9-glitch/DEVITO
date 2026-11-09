@@ -1,0 +1,200 @@
+name: AVA Neuro Tangle Safe Check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'docs/issue-112-neuro-tangle-cleanup.md'
+      - '.github/workflows/ava-neuro-tangle-safe-check.yml'
+  pull_request:
+    paths:
+      - 'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+      - 'docs/issue-112-neuro-tangle-cleanup.md'
+      - '.github/workflows/ava-neuro-tangle-safe-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          show-progress: false
+
+      - name: Parse, enforce AST policy, and run negative tests
+        id: validate
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            .\scripts\Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+            'PASS' | Set-Content -LiteralPath validation-result.txt -Encoding UTF8
+          }
+          catch {
+            ($_ | Format-List * -Force | Out-String) | Set-Content -LiteralPath validation-result.txt -Encoding UTF8
+            throw
+          }
+
+      - name: Run two bounded cycles and verify evidence
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $output = Join-Path $env:RUNNER_TEMP ('ava-neuro-tangle-01610-1-' + [Guid]::NewGuid().ToString('N'))
+          1..2 | ForEach-Object {
+            .\scripts\AVA_NeuroTangle_Guardian_v1_SAFE.ps1 `
+              -Mode Once `
+              -OutputDirectory $output `
+              -MaxChainCycles 10 `
+              -MaxLogBytes 10485760 `
+              -MaxEvidenceBytes 268435456
+          }
+
+          $required = @(
+            'State\baseline.json',
+            'State\tangle_state.json',
+            'Reports\Snapshots\snapshot_0000000001.json',
+            'Reports\Snapshots\snapshot_0000000002.json',
+            'Reports\Analyses\analysis_0000000001.json',
+            'Reports\Analyses\analysis_0000000002.json',
+            'Reports\latest_snapshot.json',
+            'Reports\latest_analysis.json',
+            'Reports\sha256_manifest.json',
+            'Portal\ava_neuro_tangle_portal.html',
+            'Logs\events.jsonl',
+            'Logs\tangle.jsonl'
+          )
+          foreach ($relativePath in $required) {
+            $candidate = Join-Path $output $relativePath
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+              throw "Expected runtime output is missing: $candidate"
+            }
+          }
+
+          $snapshot = Get-Content -LiteralPath (Join-Path $output 'Reports\latest_snapshot.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          $analysis = Get-Content -LiteralPath (Join-Path $output 'Reports\latest_analysis.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($snapshot.Marker -cne 'AVA 01610 1' -or $analysis.Marker -cne 'AVA 01610 1') {
+            throw 'AVA 01610 1 marker is missing from runtime evidence.'
+          }
+          foreach ($property in @('NetAdapters', 'WLAN', 'RecentEvents')) {
+            if ($snapshot.PSObject.Properties.Name -notcontains $property) {
+              throw "Snapshot feature is missing: $property"
+            }
+          }
+          if ($analysis.PSObject.Properties.Name -notcontains 'Bits' -or
+              $analysis.Bits.PSObject.Properties.Name -notcontains 'CollectorError') {
+            throw 'Explicit decision bits are missing.'
+          }
+          if ([int]$analysis.RiskScore -ge 100) {
+            throw 'Bounded runner analysis incorrectly saturated at 100.'
+          }
+
+          $tanglePath = Join-Path $output 'Logs\tangle.jsonl'
+          $tangleLines = @(Get-Content -LiteralPath $tanglePath -Encoding UTF8)
+          if ($tangleLines.Count -ne 2) {
+            throw "Expected exactly two bounded Tangle entries, found $($tangleLines.Count)."
+          }
+          $entries = @($tangleLines | ForEach-Object { $_ | ConvertFrom-Json })
+          if ([int]$entries[0].Cycle -ne 1 -or [int]$entries[1].Cycle -ne 2 -or
+              [string]$entries[0].PreviousHash -ne '' -or
+              [string]$entries[1].PreviousHash -ne [string]$entries[0].CurrentHash) {
+            throw 'Main-chain sequence or previous-hash continuity failed.'
+          }
+          foreach ($entry in $entries) {
+            foreach ($reference in @(
+                @{ Path = $entry.SnapshotPath; Hash = $entry.SnapshotHash },
+                @{ Path = $entry.AnalysisPath; Hash = $entry.AnalysisHash }
+              )) {
+              $file = Join-Path $output ([string]$reference.Path).Replace('/', '\')
+              $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -ne [string]$reference.Hash) {
+                throw "Persisted evidence hash mismatch: $($reference.Path)"
+              }
+            }
+          }
+
+          . .\scripts\AVA_NeuroTangle_Guardian_v1_SAFE.ps1 -Mode Once -OutputDirectory $output
+          $verified = Test-AVATangleChain
+          if ([int]$verified.Cycle -ne 2) {
+            throw 'Active main-chain verification did not return cycle 2.'
+          }
+          Test-AVABranchChain -MainEntries $verified.Entries | Out-Null
+
+          $manifest = Get-Content -LiteralPath (Join-Path $output 'Reports\sha256_manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          foreach ($manifestEntry in $manifest) {
+            $file = Join-Path $output ([string]$manifestEntry.Path).Replace('/', '\')
+            $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne [string]$manifestEntry.Hash) {
+              throw "Manifest hash mismatch: $($manifestEntry.Path)"
+            }
+          }
+
+          $alertPath = Join-Path $output 'Logs\alerts.jsonl'
+          if (Test-Path -LiteralPath $alertPath -PathType Leaf) {
+            $alerts = @(Get-Content -LiteralPath $alertPath -Encoding UTF8 | ForEach-Object { $_ | ConvertFrom-Json })
+            $duplicate = @($alerts | Group-Object Fingerprint | Where-Object { $_.Count -gt 1 })
+            if ($duplicate.Count -gt 0) {
+              throw 'Duplicate alert fingerprints were appended.'
+            }
+          }
+
+          $beforeCorruptionAttempt = (Get-FileHash -LiteralPath $tanglePath -Algorithm SHA256).Hash
+          $statePath = Join-Path $output 'State\tangle_state.json'
+          '{"Cycle":999,"LastHash":"tampered"}' | Set-Content -LiteralPath $statePath -Encoding UTF8
+          $corruptionStopped = $false
+          try {
+            .\scripts\AVA_NeuroTangle_Guardian_v1_SAFE.ps1 -Mode Once -OutputDirectory $output -MaxChainCycles 10
+          }
+          catch {
+            $corruptionStopped = $true
+          }
+          if (-not $corruptionStopped) {
+            throw 'Corrupt chain state did not fail closed.'
+          }
+          $afterCorruptionAttempt = (Get-FileHash -LiteralPath $tanglePath -Algorithm SHA256).Hash
+          if ($afterCorruptionAttempt -ne $beforeCorruptionAttempt) {
+            throw 'Tangle changed after the fail-closed corruption test.'
+          }
+
+          Write-Host "AVA 01610 1 two-cycle evidence verification passed: $output"
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Lint issue 112 scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1',
+            'scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1'
+          )
+          $results = @($files | ForEach-Object {
+            Invoke-ScriptAnalyzer -Path $_ -Severity Warning, Error -ExcludeRule @('PSAvoidUsingWriteHost')
+          })
+          $results | Select-Object ScriptName, Line, Column, Severity, RuleName, Message |
+            ConvertTo-Json -Depth 5 | Set-Content -LiteralPath psscriptanalyzer-result.json -Encoding UTF8
+          if ($results.Count -gt 0) {
+            $results | ForEach-Object {
+              Write-Host "::warning file=$($_.ScriptName),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
+            }
+            throw 'Targeted PSScriptAnalyzer reported findings.'
+          }
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ava-neuro-tangle-validation
+          path: |
+            validation-result.txt
+            psscriptanalyzer-result.json
+            scripts/AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+            scripts/Test_AVA_NeuroTangle_Guardian_v1_SAFE.ps1
+          if-no-files-found: warn
