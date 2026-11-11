@@ -16,9 +16,10 @@ from datetime import datetime, timezone
 from html import escape
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 HERE = Path(__file__).resolve().parent
+EXPORT_NAME = "CSV-Stromstoß-DannyNicoHildebrand.sv"
 METRICS = {
     "samples": "Messpunkte", "start_mV": "Start (mV)", "end_mV": "Ende (mV)",
     "min_mV": "Minimum (mV)", "min_ms": "Zeit Min. (ms)",
@@ -105,10 +106,10 @@ def page(data):
     body = "".join("<tr>" + "".join(f"<td>{cell(row[k])}</td>" for k in fields)
                    + "</tr>" for row in data["rows"])
     errors = "".join(f"<li>{escape(e)}</li>" for e in data["errors"])
-    return ("<!doctype html><html lang='de'><meta charset=utf-8><title>AVA Hay-Messwerte</title>"
+    return ("<!doctype html><html lang='de'><meta charset=utf-8><title>" + EXPORT_NAME + "</title>"
             "<style>body{font:1rem system-ui;margin:2rem}table{border-collapse:collapse}"
             "th,td{padding:.5rem;border:1px solid #aaa;text-align:right}th{background:#def}</style>"
-            "<h1>AVA · Hay-Messwerte</h1><p>Auswertung (UTC): " + data["evaluated_utc"]
+            "<h1>" + EXPORT_NAME + "</h1><p>Auswertung (UTC): " + data["evaluated_utc"]
             + " · <a href='/tables.json'>JSON</a> · <a href='/tables.sv'>SystemVerilog</a></p>"
             + "<table><thead><tr>" + "".join(f"<th>{v}</th>" for v in fields.values())
             + "</tr></thead><tbody>" + body + "</tbody></table>"
@@ -142,6 +143,8 @@ def main():
             payload = content.encode()
             self.send_response(200)
             self.send_header("Content-Type", mime + "; charset=utf-8")
+            if route == "/tables.sv":
+                self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(EXPORT_NAME))
             self.send_header("Content-Length", str(len(payload)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
