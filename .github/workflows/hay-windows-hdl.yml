@@ -1,0 +1,64 @@
+name: Hay Windows HDL check
+on:
+  push:
+    branches: [docs/hay-kennwerte-20261111]
+    paths:
+      - hay_tables/**
+      - .github/workflows/hay-windows-hdl.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compile-and-start:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pyslang==12.1.0
+      - name: Compile SystemVerilog and verify local server
+        shell: python
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          import json, subprocess, sys, time
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from urllib.request import urlopen
+          from urllib.error import URLError
+          from pyslang.syntax import SyntaxTree
+          from pyslang.ast import Compilation
+          root = Path("hay_tables")
+          hdl = root / "CSV-Stromstoß-DannyNicoHildebrand.sv"
+          compilation = Compilation()
+          compilation.addSyntaxTree(SyntaxTree.fromText(hdl.read_text(encoding="utf-8")))
+          compilation.addSyntaxTree(SyntaxTree.fromText("module smoke; import hay_tables_pkg::*; real peak = series_max_mV[N-1]; endmodule"))
+          compilation.getRoot()
+          errors = [d for d in compilation.getAllDiagnostics() if d.isError()]
+          if errors:
+              raise RuntimeError([str(d.code) for d in errors])
+          print("HDL compiled and elaborated")
+          with TemporaryDirectory() as inputs:
+              proc = subprocess.Popen([sys.executable, str(root / "server.py"), "--data-dir", inputs, "--port", "18765"])
+              try:
+                  base = "http://127.0.0.1:18765"
+                  for attempt in range(50):
+                      try:
+                          with urlopen(base, timeout=2) as response:
+                              assert hdl.name in response.read().decode()
+                          break
+                      except URLError:
+                          if proc.poll() is not None or attempt == 49:
+                              raise
+                          time.sleep(0.1)
+                  with urlopen(base + "/tables.json", timeout=5) as response:
+                      data = json.load(response)
+                      assert len(data["rows"]) == 4 and not data["errors"]
+                  with urlopen(base + "/tables.sv", timeout=5) as response:
+                      assert response.read().decode() == hdl.read_text(encoding="utf-8")
+                  print("Windows server started; dashboard, JSON and HDL verified")
+              finally:
+                  proc.terminate()
+                  proc.wait(timeout=10)
