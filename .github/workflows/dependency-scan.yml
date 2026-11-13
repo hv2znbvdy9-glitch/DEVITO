@@ -1,0 +1,49 @@
+name: Dependency Scan
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip audit
+        run: |
+          pip install pip-audit pip-licenses
+          pip-audit -r requirements.txt -f json -o pip-audit.json || true
+          pip-audit -r requirements.txt || true
+      - name: Outdated packages (update recommendations)
+        run: |
+          pip install -r requirements.txt
+          pip list --outdated --format=json > outdated.json || true
+      - name: npm audit (only if lockfile exists)
+        run: |
+          if [ -f package-lock.json ]; then npm audit --json > npm-audit.json || true; fi
+      - name: Snyk (only if SNYK_TOKEN configured)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -n "$SNYK_TOKEN" ]; then
+            npx --yes snyk test --file=requirements.txt --json > snyk.json || true
+          else
+            echo "SNYK_TOKEN not set; skipped"
+          fi
+      - name: License report
+        run: pip-licenses --format=json --output-file=licenses.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-scan-${{ github.run_id }}
+          path: |
+            pip-audit.json
+            outdated.json
+            npm-audit.json
+            snyk.json
+            licenses.json
+          if-no-files-found: ignore
